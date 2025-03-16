@@ -1,0 +1,85 @@
+local M = {}
+
+-- Vehicle helpers
+
+local function resetVehicle()
+    local veh = be:getPlayerVehicle(0)
+    if veh then
+        veh:reset()
+    end
+end
+
+local function resetVehicleToPos(pos)
+    local veh = be:getPlayerVehicle(0)
+
+    if veh and pos then
+        destination = vec3(pos.x, pos.y, pos.z)
+        veh:setPosition(destination)
+    end
+end
+
+local function resetVehicleToPosRot(pos, rot)
+    local veh = be:getPlayerVehicle(0)
+
+    if veh and pos and rot then
+        veh:setPositionRotation(pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.w)
+    end
+end
+
+local function teleportVehicleToLastRoad(resetVehicle, destinationPos)
+    local veh = be:getPlayerVehicle(0)
+
+    if veh then
+        local destination = nil;
+
+        if destinationPos then
+            destination = vec3(destinationPos.x, destinationPos.y, destinationPos.z)
+        end
+
+        spawn.teleportToLastRoad(veh,
+            { resetVehicle = resetVehicle, destinationPos = destination })
+    end
+end
+
+local function setVehicleFreeze(freeze)
+    local veh = be:getPlayerVehicle(0)
+    if veh then
+        if freeze then
+            veh:queueLuaCommand('controller.setFreeze(1)')
+        else
+            veh:queueLuaCommand('controller.setFreeze(0)')
+        end
+    end
+end
+
+local function setVehicleRecoveryEnabled(enabled)
+    if enabled then
+        core_recoveryPrompt.setDefaultsForFreeroam()
+    else
+        core_recoveryPrompt.deactivateAllButtons()
+        core_recoveryPrompt.setActive(not enabled)
+    end
+end
+
+-- General helpers
+
+local function isTrue(value)
+    if string.lower(value) == "true" or value == "1" then
+        return true
+    elseif string.lower(value) == "false" or value == "0" then
+        return false
+    else
+        return value
+    end
+end
+
+M.resetVehicle = resetVehicle
+M.resetVehicleToPos = resetVehicleToPos
+M.resetVehicleToPosRot = resetVehicleToPosRot
+M.teleportVehicleToLastRoad = teleportVehicleToLastRoad
+M.setVehicleFreeze = setVehicleFreeze
+M.setVehicleRecoveryEnabled = setVehicleRecoveryEnabled
+
+M.isTrue = isTrue
+
+return M

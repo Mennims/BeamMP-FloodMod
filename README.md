@@ -3,11 +3,19 @@
 This is a resource for BeamMP that adds a flood to all sorts of maps (as long as they have an ocean).
 
 ## Installation
-1. Download the latest release from the [releases page](https://github.com/vulcan-dev/BeamMP-FloodMod/releases)
+1. Download the latest release from the [releases page](https://github.com/Mennims/BeamMP-FloodMod/releases)
 2. Copy `floodBeamMP.zip` into your `BeamMP-Server/Resources/Client` folder
 3. Copy `Flood` into your `BeamMP-Server/Resources/Server` folder
 
 ## Commands
+
+### v1.2.0 Alpha
+- Alpha release, still needs testing.
+- Configurable spawn positions in config/map.json (Default spawns for FloodEscapeCrater).
+- Vehicle freezing until countdown completes.
+- Recover vehicle to road with configurable limit in config/map.json.
+- Default flood speed and level can be configured in config/map.json.
+
 ### v1.1.0 Preview
 - `/flood_start` - Starts the flood
 - `/flood_stop` - Stops the flood

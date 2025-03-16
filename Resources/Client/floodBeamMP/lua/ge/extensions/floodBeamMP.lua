@@ -1,3 +1,5 @@
+local MH = require "ge.extensions.multiplayerHelper"
+
 local M = {}
 
 local allWater = {}
@@ -103,6 +105,66 @@ AddEventHandler("E_SetWaterLevel", function(level)
     handleWaterSources() -- Hides/Shows water sources depending on the ocean level
 end)
 
+AddEventHandler("E_ResetVehicle", function(args)
+    log("W", "E_ResetVehicle", "Resetting vehicle")
+
+    MH.resetVehicle()
+end)
+
+AddEventHandler("E_ResetVehicleToPos", function(destinationPos)
+    destinationPos = jsonDecode(destinationPos)
+
+    log("W", "E_ResetVehicleToPos", "Resetting vehicle to position")
+
+    if destinationPos then
+        MH.resetVehicleToPosRot(destinationPos.pos, destinationPos.rot)
+    end
+end)
+
+AddEventHandler("E_SetVehicleFreeze", function(freeze)
+    freeze = MH.isTrue(freeze)
+
+    if freeze then
+        log("W", "E_SetVehicleFreeze", "Freezing vehicle")
+    else
+        log("W", "E_SetVehicleFreeze", "Unfreezing vehicle")
+    end
+
+    MH.setVehicleFreeze(freeze)
+end)
+
+AddEventHandler("E_ResetToRoad", function(destinationPosJson)
+    log("W", "E_ResetToRoad", "Resetting vehicle to road")
+
+    local destinationPos = jsonDecode(destinationPosJson)
+
+    MH.teleportVehicleToLastRoad(true, destinationPos)
+end)
+
+AddEventHandler("E_SetVehicleFreeze", function(freeze)
+    freeze = MH.isTrue(freeze)
+
+    if freeze then
+        log("W", "E_SetVehicleFreeze", "Freezing vehicle")
+    else
+        log("W", "E_SetVehicleFreeze", "Unfreezing vehicle")
+    end
+
+    MH.setVehicleFreeze(freeze)
+end)
+
+AddEventHandler("E_SetVehicleRecoveryEnabled", function(enabled)
+    enabled = MH.isTrue(enabled)
+
+    if enabled then
+        log("W", "E_SetVehicleFreeze", "Enabling vehicle recovery")
+    else
+        log("W", "E_SetVehicleFreeze", "Disabling vehicle recovery")
+    end
+
+    MH.setVehicleRecoveryEnabled(enabled)
+end)
+
 AddEventHandler("E_SetRainVolume", function(volume)
     local volume = tonumber(volume) or 0
     if not volume then
@@ -164,5 +226,13 @@ AddEventHandler("E_SetRainAmount", function(amount)
 end)
 
 M.hideCoveredWater = hideCoveredWater
+
+-- Hooks
+function trackVehReset()
+    log("W", "E_TrackVehReset", "Tracking vehicle reset")
+    TriggerServerEvent("E_RequestResetToRoad", "")
+end
+
+M.trackVehReset = trackVehReset
 
 return M
