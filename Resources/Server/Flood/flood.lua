@@ -33,7 +33,6 @@ M.options = {
     floodWithRain = true
 }
 
-
 M.isOceanValid = false
 M.initialLevel = 0.0
 M.commands = {}
@@ -196,6 +195,16 @@ local function ensureVehiclesAreAboveWaterLine()
     end
 end
 
+local function welcomePlayer(pid)
+    MP.hSendChatMessage(pid, "Welcome to the flood! ^gSpawn a vehicle and start the flood!")
+    MP.hSendChatMessage(pid, "Use ^b/flood_start^r to start the flood.")
+    MP.hSendChatMessage(pid, "Use ^b/flood_stop^r to stop the flood.")
+    MP.hSendChatMessage(pid, "Use ^b/flood_restart^r to restart the flood.")
+    MP.hSendChatMessage(pid, "Use ^b/flood_reset^r to reset the flood.")
+    MP.hSendChatMessage(pid, "Use ^b/flood_level^r to set the flood level.")
+    MP.hSendChatMessage(pid, "Use ^b/flood_speed^r to set the flood speed.")
+end
+
 -- BeamMP events
 
 function onPlayerJoin(pid)
@@ -214,6 +223,8 @@ function onPlayerJoin(pid)
     end
 
     updatePlayerState(pid)
+
+    welcomePlayer(pid)
 end
 
 function onPlayerDisconnect(pid)
@@ -231,7 +242,6 @@ function onVehicleReset(pid, pName, data)
 end
 
 function onVehicleEdited(pid, pName, data)
-    print(MP.GetPlayerVehicles(pid))
     return true
 end
 
