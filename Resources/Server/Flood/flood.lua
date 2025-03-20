@@ -255,10 +255,10 @@ local function stopFloodWhenNoVehicles()
 end
 
 local function welcomePlayer(pid)
-    MP.hSendChatMessage(pid, "Welcome to the flood! ^gSpawn a vehicle and start the flood!")
-    MP.hSendChatMessage(pid, "Use ^b/flood_start^r to start the flood.")
-    MP.hSendChatMessage(pid, "Use ^b/flood_stop^r to stop the flood.")
-    MP.hSendChatMessage(pid, "Use ^b/flood_restart^r to restart the flood.")
+    MP.hSendChatMessage(pid, "^eWelcome to the flood!")
+    MP.hSendChatMessage(pid, "Use ^2/flood_start^r to start the flood.")
+    MP.hSendChatMessage(pid, "Use ^2/flood_stop^r to stop the flood.")
+    MP.hSendChatMessage(pid, "Use ^2/flood_restart^r to restart the flood.")
     MP.hSendChatMessage(pid, "Use ^b/flood_reset^r to reset the flood.")
     MP.hSendChatMessage(pid, "Use ^b/flood_level^r to set the flood level.")
     MP.hSendChatMessage(pid, "Use ^b/flood_speed^r to set the flood speed.")
@@ -268,7 +268,6 @@ end
 
 function onPlayerJoin(pid)
     C.setUiLayout(pid, "flood")
-
     welcomePlayer(pid)
 
     local success = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
@@ -419,6 +418,9 @@ function E_OnInitialize(pid, waterLevel)
         print("Setting initial water level to " .. waterLevel)
         M.initialLevel = waterLevel -- We sadly have to rely on the client 😅🔫
     end
+
+    C.spawnDefaultVehicle(pid)
+    updatePlayerState(pid)
 end
 
 M.commands["start"] = function(pid)
