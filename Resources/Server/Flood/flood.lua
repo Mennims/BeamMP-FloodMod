@@ -73,6 +73,9 @@ end
 local function startCountdown()
     MP.CreateEventTimer("ET_FreezeVehicles", 200)
     
+    MP.hSendChatMessage(-1, "^2^oFlood is beginning...")
+
+    M.countdown.started = false;
     MP.CreateEventTimer("ET_Countdown", 1000)
 end
 
@@ -205,11 +208,49 @@ end
 local function ensureVehiclesAreAboveWaterLine()
     for pid, playerState in pairs(M.state.players) do
         if playerState.vehicle.positionRaw then
-            if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel + 3 and not playerState.dead then
+            if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel - 7 and not playerState.dead then
                 playerState.dead = true
                 print("Player " .. pid .. " is dead")
+                MP.hSendChatMessage(pid, "^4" .. MP.GetPlayerName(pid) .. " ^r^3^l^o died...")
             end
         end
+    end
+end
+
+local function stopFloodWhenPlayersDead()
+    local allPlayersDead = true
+    for pid, playerState in pairs(M.state.players) do
+        if not playerState.dead then
+            allPlayersDead = false
+            break
+        end
+    end
+
+    if allPlayersDead then
+        MP.hSendChatMessage(-1, "^6^oAll players are dead, stopping flood")
+        M.commands["stop"]("")
+    end
+end
+
+local function checkForNoVehicles()
+    local noVehiclesSpawned = false
+    for pid, playerState in pairs(M.state.players) do
+        local playerVehicles = MP.GetPlayerVehicles(pid);
+        local playerState = getPlayerState(pid);
+
+        if not playerVehicles or (type(playerVehicles) == "table" and (playerVehicles.count == 0 or next(playerVehicles) == nil)) then
+            noVehiclesSpawned = true
+            break
+        end
+    end
+
+    return noVehiclesSpawned
+end
+
+local function stopFloodWhenNoVehicles()
+    if checkForNoVehicles() then
+        MP.hSendChatMessage(-1, "^4^lNo vehicles found, stopping flood")
+        M.commands["stop"]("")
     end
 end
 
@@ -226,6 +267,8 @@ end
 -- BeamMP events
 
 function onPlayerJoin(pid)
+    C.setUiLayout(pid, "flood")
+
     welcomePlayer(pid)
 
     local success = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
@@ -234,9 +277,6 @@ function onPlayerJoin(pid)
     else
         print("Failed to send \"E_OnPlayerLoaded\" to " .. pid)
     end
-
-    C.setUiLayout(pid, "flood")
-
     -- Sync rain & volume
     if M.options.rainAmount > 0.0 then
         MP.TriggerClientEvent(pid, "E_SetRainAmount", tostring(M.options.rainAmount))
@@ -356,6 +396,8 @@ function T_Update()
 
     updatePlayersStatesVehicles()
     ensureVehiclesAreAboveWaterLine()
+    stopFloodWhenPlayersDead()
+    stopFloodWhenNoVehicles()
 end
 
 function E_OnInitialize(pid, waterLevel)
@@ -390,6 +432,11 @@ M.commands["start"] = function(pid)
         return
     end
     
+    if checkForNoVehicles() then
+        MP.hSendChatMessage(pid, "^4^lNo vehicles found, unable to start flood")
+        return
+    end
+    
     if M.options.oceanLevel == 0.0 then
         M.options.oceanLevel = M.initialLevel
     end
@@ -405,7 +452,7 @@ M.commands["start"] = function(pid)
 end
 
 M.commands["stop"] = function(pid)
-    if not isFloodOrCountdownStarted() then
+    if not M.options.enabled and not M.countdown.started then
         MP.hSendChatMessage(pid, "Flood is already stopped")
         return
     end
@@ -611,11 +658,7 @@ M.commands["printSettings"] = function(pid)
 end
 
 function E_RequestResetToRoad(pid, ...)
-    if not isFloodOrCountdownStarted then
-        return
-    end
-
-    if M.countdown.started then
+    if not isFloodOrCountdownStarted() then
         return
     end
 
@@ -627,6 +670,11 @@ function E_RequestResetToRoad(pid, ...)
         return
     end
 
+    if playerState.dead then
+        MP.hSendChatMessage(pid, "^4^lYou are dead, you can't respawn")
+        return
+    end
+
     if respawnedCount >= M.mapConfig.respawnLimit then
         MP.hSendChatMessage(pid, "^4^lOut of respawns")
         return
@@ -634,7 +682,7 @@ function E_RequestResetToRoad(pid, ...)
 
     MP.TriggerClientEvent(pid, "E_ResetToRoad", Util.JsonEncode(M.mapConfig.destination.pos))
     
-    MP.hSendChatMessage(pid, "^2Vehicle reset to road (^4^l" .. respawnedCount + 1 .. "^r/^2^l" .. M.mapConfig.respawnLimit .. ") resets used")
+    MP.hSendChatMessage(pid, "^2Vehicle reset to road (^4^l" .. respawnedCount + 1 .. "^r/^2^l" .. M.mapConfig.respawnLimit .. "^r^2) resets used")
 
     incrementPlayerRespawnedCount(pid)
 end

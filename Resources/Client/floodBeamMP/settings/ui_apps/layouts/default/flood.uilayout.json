@@ -119,14 +119,15 @@
       {
         "appName":"floodsealevel",
         "placement":{
-          "bottom":"230px",
-          "height":"360px",
+          "bottom":0,
+          "height":"390px",
           "left":"0px",
+          "margin":"auto",
           "position":"absolute",
           "right":"",
-          "top":"",
-          "width":"220px"
-        }
+          "top":0,
+          "width":"230px"
+        }  
       }
     ],
     "title":"Flood",
