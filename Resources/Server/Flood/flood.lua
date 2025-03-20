@@ -12,8 +12,8 @@ local playerTemplate = {
 }
 
 local vehicleTemplate = {
-    positionRaw = "", -- Fetched from getPositionRaw
-    config = "" -- JSON config
+    positionRaw = nil, -- Fetched from getPositionRaw
+    config = nil -- JSON config
 }
 
 local M = {}
@@ -34,7 +34,7 @@ M.options = {
 }
 
 M.isOceanValid = false
-M.initialLevel = 0.0
+M.initialLevel = M.mapConfig.floodOptions.oceanLevel
 M.commands = {}
 
 M.countdown = {
@@ -68,8 +68,6 @@ local function beginFlood()
     MP.CreateEventTimer("ET_Update", 25)
 
     C.setVehicleFreeze(false)
-
-    MP.hSendChatMessage(-1, "A flood has started!")
 end
 
 local function startCountdown()
@@ -105,8 +103,17 @@ local function updatePlayerStateVehicle(pid)
     local playerState = getPlayerState(pid);
 
     if playerVehicles then
-        playerState.vehicle.config = playerVehicles[0];
-        playerState.vehicle.positionRaw = MP.GetPositionRaw(pid, 0)
+        for vehicleId, vehicleConfigRaw in pairs(playerVehicles) do
+            local start = string.find(vehicleConfigRaw, "{")
+            local formattedVehicleConfig = string.sub(vehicleConfigRaw, start, -1)
+            local vehicleConfig = Util.JsonDecode(formattedVehicleConfig)
+
+            if vehicleConfig.jbm ~= "unicycle" then
+                playerState.vehicle.config = vehicleConfig;
+                playerState.vehicle.positionRaw = MP.GetPositionRaw(pid, vehicleId)
+                break
+            end
+        end
     end
 end
 
@@ -164,19 +171,31 @@ local function resetVehiclesToStartPositions()
     for i = 1, math.min(playerCount, #M.mapConfig.startPositions) do
         table.insert(positions, i)
     end
+
+    C.setDynamicCollisionEnabled(false)
     
     for pid, playerState in pairs(M.state.players) do
         if #positions > 0 then
             local randomIndex = math.random(1, #positions)
             local posIndex = positions[randomIndex]
             table.remove(positions, randomIndex)
-            
+
+            updatePlayerStateVehicle(pid)
+            local playerState = getPlayerState(pid)
+
+            if playerState.vehicle.config and playerState.vehicle.config.vid then
+                print("Entering vehicle " .. playerState.vehicle.config.vid)
+                C.enterVehicle(pid, playerState.vehicle.config.vid)
+            end
+
             local startPos = M.mapConfig.startPositions[posIndex]
             if startPos then
                 MP.TriggerClientEvent(pid, "E_ResetVehicleToPos", Util.JsonEncode(startPos))
             end
         end
     end
+
+    C.setDynamicCollisionEnabled(true)
 end
 
 local function isFloodOrCountdownStarted()
@@ -188,7 +207,6 @@ local function ensureVehiclesAreAboveWaterLine()
         if playerState.vehicle.positionRaw then
             if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel + 3 and not playerState.dead then
                 playerState.dead = true
-                MP.GetPlayerVehicles(pid, 0)
                 print("Player " .. pid .. " is dead")
             end
         end
@@ -269,12 +287,17 @@ function T_FreezeVehicles()
 end
 
 function T_Countdown()
+    local countColor = "^4^l"
     if (M.countdown.currentCount <= M.countdown.count) then
         if M.countdown.currentCount == M.countdown.count then
-            MP.hSendChatMessage(-1, "GO!")
+            MP.hSendChatMessage(-1, "^a^lGO!")
             countdownComplete()
         else
-            MP.hSendChatMessage(-1, M.countdown.count - M.countdown.currentCount .. "!")
+            if M.countdown.count - M.countdown.currentCount <= 2 then
+                countColor = "^e^l"
+            end
+
+            MP.hSendChatMessage(-1, countColor .. M.countdown.count - M.countdown.currentCount .. "!")
             M.countdown.currentCount = M.countdown.currentCount + 1;
         end
     end
@@ -387,6 +410,15 @@ M.commands["stop"] = function(pid)
     resetPlayersRespawnedCount()
     resetCountdown();
     C.setVehicleRecoveryEnabled(true)
+
+    M.options.enabled = false
+    M.options.oceanLevel = M.initialLevel
+    setWaterLevel(M.initialLevel)
+
+    for pid, playerState in pairs(M.state.players) do
+        setPlayerDead(pid, false)
+    end
+
     MP.hSendChatMessage(-1, "The flood has stopped!")
 end
 
@@ -396,7 +428,8 @@ M.commands["reset"] = function(pid)
         return
     end
 
-    MP.CancelEventTimer("ET_Update")
+    M.commands["stop"](pid);
+
     M.options.enabled = false
     M.options.oceanLevel = M.initialLevel
     setWaterLevel(M.initialLevel)
@@ -410,10 +443,8 @@ M.commands["restart"] = function(pid)
 
     MP.hSendChatMessage(-1, "Restarting flood!")
 
-    MP.CancelEventTimer("ET_Update")
-    M.options.enabled = false
-    M.options.oceanLevel = M.initialLevel
-    setWaterLevel(M.initialLevel)
+    M.commands["stop"](pid);
+
 
     M.commands["start"](pid);
 end
@@ -593,13 +624,13 @@ function E_RequestResetToRoad(pid, ...)
     end
 
     if respawnedCount >= M.mapConfig.respawnLimit then
-        MP.hSendChatMessage(pid, "Out of respawns")
+        MP.hSendChatMessage(pid, "^4^lOut of respawns")
         return
     end
 
     MP.TriggerClientEvent(pid, "E_ResetToRoad", Util.JsonEncode(M.mapConfig.destination.pos))
     
-    MP.hSendChatMessage(pid, "Vehicle reset to road")
+    MP.hSendChatMessage(pid, "^2Vehicle reset to road (^4^l" .. respawnedCount + 1 .. "^r/^2^l" .. M.mapConfig.respawnLimit .. ") resets used")
 
     incrementPlayerRespawnedCount(pid)
 end

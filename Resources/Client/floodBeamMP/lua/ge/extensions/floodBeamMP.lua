@@ -165,6 +165,30 @@ AddEventHandler("E_SetVehicleRecoveryEnabled", function(enabled)
     MH.setVehicleRecoveryEnabled(enabled)
 end)
 
+AddEventHandler("E_SetDynamicCollisionEnabled", function(enabled)
+    enabled = MH.isTrue(enabled)
+
+    if enabled then
+        log("W", "E_SetDynamicCollisionEnabled", "Enabling dynamic collision")
+    else
+        log("W", "E_SetDynamicCollisionEnabled", "Disabling dynamic collision")
+    end
+
+    MH.setDynamicCollisionEnabled(enabled)
+end)
+
+AddEventHandler("E_EnterVehicle", function(vehicleId)
+    vehicleId = tonumber(vehicleId)
+
+    if vehicleId then
+        log("W", "E_EnterVehicle", "Entering vehicle " .. vehicleId)
+    else
+        log("W", "E_EnterVehicle", "Invalid vehicle id")
+    end
+
+    MH.enterVehicle(vehicleId)
+end)
+
 AddEventHandler("E_SetRainVolume", function(volume)
     local volume = tonumber(volume) or 0
     if not volume then

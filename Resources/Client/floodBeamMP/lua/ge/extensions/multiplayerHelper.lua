@@ -61,6 +61,23 @@ local function setVehicleRecoveryEnabled(enabled)
     end
 end
 
+local function setDynamicCollisionEnabled(enabled)
+    be:setDynamicCollisionEnabled(enabled)
+end
+
+local function enterVehicle(id)
+    local unicycle = be:getPlayerVehicle(0)
+    if unicycle and unicycle:getJBeamFilename() == "unicycle" then
+        be.nodeGrabber:clearVehicleFixedNodes(unicycle:getId())
+        unicycle:setActive(0)
+    end
+
+    local veh = be:getObjectByID(id)
+    if veh then
+        be:enterVehicle(0, veh)
+    end
+end
+
 -- General helpers
 
 local function isTrue(value)
@@ -79,7 +96,8 @@ M.resetVehicleToPosRot = resetVehicleToPosRot
 M.teleportVehicleToLastRoad = teleportVehicleToLastRoad
 M.setVehicleFreeze = setVehicleFreeze
 M.setVehicleRecoveryEnabled = setVehicleRecoveryEnabled
-
+M.setDynamicCollisionEnabled = setDynamicCollisionEnabled
+M.enterVehicle = enterVehicle
 M.isTrue = isTrue
 
 return M

@@ -1,9 +1,9 @@
 {
     "floodOptions": {
         "oceanLevel": 95,
-        "floodSpeed": 0.055
+        "floodSpeed": 0.058
     },
-    "respawnLimit": 2,
+    "respawnLimit": 3,
     "destination": {
         "pos": {
             "x": 634.2406616,
