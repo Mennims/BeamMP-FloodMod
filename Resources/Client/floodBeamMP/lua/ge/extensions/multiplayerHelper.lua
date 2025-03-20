@@ -78,6 +78,10 @@ local function enterVehicle(id)
     end
 end
 
+local function spawnDefaultVehicle()
+    core_vehicles.spawnDefault()
+end
+
 -- General helpers
 
 local function isTrue(value)
@@ -90,6 +94,17 @@ local function isTrue(value)
     end
 end
 
+local function playCountdown()
+    guihooks.trigger('ScenarioFlashMessage', {{3,1, "Engine.Audio.playOnce('AudioGui', 'event:UI_Countdown1')", true},
+        {2,1, "Engine.Audio.playOnce('AudioGui', 'event:UI_Countdown2')", true},
+        {1,1, "Engine.Audio.playOnce('AudioGui', 'event:UI_Countdown3')", true},
+        {"ui.scenarios.go", 1, "Engine.Audio.playOnce('AudioGui', 'event:UI_CountdownGo')", true}})
+end
+
+local function setUiLayout(layout)
+    core_gamestate.setGameState(nil, layout, nil, nil)
+end
+
 M.resetVehicle = resetVehicle
 M.resetVehicleToPos = resetVehicleToPos
 M.resetVehicleToPosRot = resetVehicleToPosRot
@@ -99,5 +114,8 @@ M.setVehicleRecoveryEnabled = setVehicleRecoveryEnabled
 M.setDynamicCollisionEnabled = setDynamicCollisionEnabled
 M.enterVehicle = enterVehicle
 M.isTrue = isTrue
+M.playCountdown = playCountdown
+M.setUiLayout = setUiLayout
+M.spawnDefaultVehicle = spawnDefaultVehicle
 
 return M

@@ -1,0 +1,26 @@
+<div style="height: 100%; width: 100%; overflow: hidden; position: relative; color: white" layout="column">
+	<link type="text/css" rel="stylesheet" href="/ui/modules/apps/floodsealevel/app.css" />
+
+	<div id="app-container">
+		<img
+			class="carIcon"
+			ng-src="/ui/modules/apps/floodsealevel/carOffroadOutlineSide.svg"
+			src="/ui/modules/apps/floodsealevel/carOffroadOutlineSide.svg"
+		/>
+
+		<div class="metrics-container">
+			<div class="sea-level-difference">
+				<span ng-if="seaLevel !== null">{{difference}}M</span>
+			</div>
+		</div>
+		
+		<div class="sea" id="sea-container" ng-style="{'transform': 'translateY(' + seaPosition + 'px)'}">
+			<canvas id="waveCanvas"></canvas>
+		</div>
+	</div>
+
+	<script type="text/javascript" src="./wave/js/libs/TweenLite.min.js"></script>
+	<script type="text/javascript" src="./wave/js/libs/EasePack.min.js"></script>
+	<script type="text/javascript" src="./wave/js/libs/signals.min.js"></script>
+	<script type="text/javascript" src="./wave/js/Wave.js"></script>
+</div>

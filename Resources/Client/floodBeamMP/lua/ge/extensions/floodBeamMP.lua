@@ -182,11 +182,27 @@ AddEventHandler("E_EnterVehicle", function(vehicleId)
 
     if vehicleId then
         log("W", "E_EnterVehicle", "Entering vehicle " .. vehicleId)
+        MH.enterVehicle(vehicleId)
     else
         log("W", "E_EnterVehicle", "Invalid vehicle id")
     end
+end)
 
-    MH.enterVehicle(vehicleId)
+AddEventHandler("E_SpawnDefaultVehicle", function()
+    log("W", "E_SpawnDefaultVehicle", "Spawning default vehicle")
+    MH.spawnDefaultVehicle()
+end)
+
+AddEventHandler("E_PlayCountdown", function()
+    log("W", "E_PlayCountdown", "Playing countdown")
+    MH.playCountdown()
+end)
+
+AddEventHandler("E_SetUiLayout", function(layout)
+    if layout then
+        log("W", "E_SetUiLayout", "Setting ui layout to " .. layout)
+        MH.setUiLayout(layout)
+    end
 end)
 
 AddEventHandler("E_SetRainVolume", function(volume)

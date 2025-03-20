@@ -1,0 +1,17 @@
+{
+"domElement": "<floodsealevel></floodsealevel>",
+"directive": "floodsealevel",
+"name": "Flood Sea Level",
+"author": "Mennims",
+"version": "1.0",
+"types": [ "ui.apps.categories.info" ],
+"css": {
+    "bottom": "680px",
+    "height": "260px",
+    "width": "280px",
+    "right": "1px",
+    "max-height": "280px",
+	  "min-width": "260px",
+    "min-height": "250px"
+  }
+}

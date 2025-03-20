@@ -32,10 +32,26 @@ local function enterVehicle(playerId, vehicleId)
     MP.TriggerClientEvent(playerId, "E_EnterVehicle", tostring(vehicleId))
 end
 
+local function spawnDefaultVehicle(playerId)
+    MP.TriggerClientEvent(playerId, "E_SpawnDefaultVehicle", "")
+end
+
+-- Requires Countdown UI app in layout
+local function playCountdown()
+    MP.TriggerClientEvent(-1, "E_PlayCountdown", "")
+end
+
+local function setUiLayout(playerId, layout)
+    MP.TriggerClientEvent(playerId, "E_SetUiLayout", layout)
+end
+
 M.resetVehicles = resetVehicles
 M.setVehicleFreeze = setVehicleFreeze
 M.setVehicleRecoveryEnabled = setVehicleRecoveryEnabled
 M.setDynamicCollisionEnabled = setDynamicCollisionEnabled
 M.enterVehicle = enterVehicle
+M.playCountdown = playCountdown
+M.setUiLayout = setUiLayout
+M.spawnDefaultVehicle = spawnDefaultVehicle
 
 return M

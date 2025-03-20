@@ -226,10 +226,16 @@ end
 -- BeamMP events
 
 function onPlayerJoin(pid)
+    welcomePlayer(pid)
+
     local success = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
-    if not success then
+    if success then
+        print("Successfully sent \"E_OnPlayerLoaded\" to " .. pid)
+    else
         print("Failed to send \"E_OnPlayerLoaded\" to " .. pid)
     end
+
+    C.setUiLayout(pid, "flood")
 
     -- Sync rain & volume
     if M.options.rainAmount > 0.0 then
@@ -240,9 +246,8 @@ function onPlayerJoin(pid)
         MP.TriggerClientEvent(pid, "E_SetRainVolume", tostring(M.options.rainVolume))
     end
 
+    C.spawnDefaultVehicle(pid)
     updatePlayerState(pid)
-
-    welcomePlayer(pid)
 end
 
 function onPlayerDisconnect(pid)
@@ -287,17 +292,16 @@ function T_FreezeVehicles()
 end
 
 function T_Countdown()
-    local countColor = "^4^l"
     if (M.countdown.currentCount <= M.countdown.count) then
+        local currentCount = M.countdown.count - M.countdown.currentCount
+
         if M.countdown.currentCount == M.countdown.count then
-            MP.hSendChatMessage(-1, "^a^lGO!")
             countdownComplete()
         else
-            if M.countdown.count - M.countdown.currentCount <= 2 then
-                countColor = "^e^l"
+            if currentCount == 3 then
+                C.playCountdown()
             end
 
-            MP.hSendChatMessage(-1, countColor .. M.countdown.count - M.countdown.currentCount .. "!")
             M.countdown.currentCount = M.countdown.currentCount + 1;
         end
     end
