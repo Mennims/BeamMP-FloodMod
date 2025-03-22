@@ -53,9 +53,6 @@ M.autoStartCountdown = {
 M.state = {
     floodStartQueued = false,
     players = {},
-    ET_FreezeVehicles = {
-        tick = 0
-    },
 }
 
 local invalidCount = 0
@@ -117,8 +114,11 @@ local function beginFlood()
 
     MP.CreateEventTimer("ET_Update", 25)
 
-    C.setDynamicCollisionEnabled(true)
     C.setVehicleFreeze(false)
+
+    U.setTimeout(function()
+        C.setDynamicCollisionEnabled(true)
+    end, 3000)
     -- for pid, playerState in pairs(M.state.players) do
     --     updatePlayerStateVehicle(pid)
     --     if getPlayerState(pid).vehicle.config and getPlayerState(pid).vehicle.config.vid then
@@ -127,8 +127,6 @@ local function beginFlood()
 end
 
 local function startCountdown()
-    MP.CreateEventTimer("ET_FreezeVehicles", 200)
-    
     MP.hSendChatMessage(-1, "^2^oFlood is beginning...")
 
     M.countdown.started = true;
@@ -306,7 +304,7 @@ local function stopFloodWhenPlayersDead()
     if not M.state.floodStartQueued then
         if (playersRemaining == 1 and totalPlayers > 1) then
             local lastPlayerAliveName = MP.GetPlayerName(lastPlayerAlivePid)
-            MP.hSendChatMessage(-1, "^6^o" .. lastPlayerAliveName .. " is the last player alive, stopping flood in 10 seconds")
+            MP.hSendChatMessage(-1, "^6^o^l" .. lastPlayerAliveName .. " ^r^6^l^ois the last player alive, stopping flood in 10 seconds")
 
             M.state.floodStartQueued = true
             U.setTimeout(function()
@@ -377,10 +375,10 @@ local function prepareFlood()
     end
 
     U.setTimeout(function()
+        C.setVehicleFreeze(true)
+        C.setVehicleRecoveryEnabled(false)
         resetVehiclesToStartPositions()
-
-        -- Start countdown after a delay
-        U.setTimeout(startCountdown, 700)
+        U.setTimeout(startCountdown, 500)
     end, 250)
 end
 
@@ -440,16 +438,6 @@ function onInit()
 
     for pid, player in pairs(MP.GetPlayers()) do
         onPlayerJoin(pid)
-    end
-end
-
-function T_FreezeVehicles()
-    M.state.ET_FreezeVehicles.tick = M.state.ET_FreezeVehicles.tick + 1;
-    if M.state.ET_FreezeVehicles.tick > 1 then
-        M.state.ET_FreezeVehicles.tick = 0;
-        MP.CancelEventTimer("ET_FreezeVehicles")
-        C.setVehicleFreeze(true)
-        C.setVehicleRecoveryEnabled(false)
     end
 end
 
@@ -838,8 +826,6 @@ function E_RequestResetToRoad(pid, ...)
 
     incrementPlayerRespawnedCount(pid)
 end
-
-MP.RegisterEvent("ET_FreezeVehicles", "T_FreezeVehicles")
 
 MP.RegisterEvent("onInit", "onInit")
 MP.RegisterEvent("onVehicleSpawn", "onVehicleSpawn")
