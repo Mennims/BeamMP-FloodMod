@@ -6,9 +6,10 @@ local U = require("libs/utils")
 local playerTemplate = {
     name = "", -- Player name
     vehicle = "",
-    status = "", -- Whether player is spectating or in game. spectating|inGame
+    status = "spectating", -- Whether player is spectating or in game. spectating|inGame
     dead = false, -- Player is dead
-    respawnedCount = 0 -- Times the player has respawned
+    respawnedCount = 0, -- Times the player has respawned
+    totalVehicles = 0 -- Total vehicles the player has spawned, excluding unicycles
 }
 
 local vehicleTemplate = {
@@ -43,11 +44,18 @@ M.countdown = {
     currentCount = 0
 }
 
+M.autoStartCountdown = {
+    started = false,
+    count = 30,
+    currentCount = 0
+}
+
 M.state = {
+    floodStartQueued = false,
     players = {},
     ET_FreezeVehicles = {
         tick = 0
-    }
+    },
 }
 
 local invalidCount = 0
@@ -61,13 +69,61 @@ local function setWaterLevel(level)
     MP.TriggerClientEvent(-1, "E_SetWaterLevel", tostring(level))
 end
 
+local function isFloodOrCountdownStarted()
+    return M.options.enabled or M.countdown.started
+end
+
+local function getPlayerState(pid)
+    if M.state.players[pid] ~= nil then
+        return M.state.players[pid]
+    else
+        return false
+    end
+end
+
+local function updatePlayerStateVehicle(pid)
+    local playerVehicles = MP.GetPlayerVehicles(pid);
+    local playerState = getPlayerState(pid);
+    local totalVehicles = 0 -- Excluding unicycles
+
+    if playerVehicles then
+        for vehicleId, vehicleConfigRaw in pairs(playerVehicles) do
+            local start = string.find(vehicleConfigRaw, "{")
+            local formattedVehicleConfig = string.sub(vehicleConfigRaw, start, -1)
+            local vehicleConfig = Util.JsonDecode(formattedVehicleConfig)
+
+            if vehicleConfig.jbm ~= "unicycle" then
+                totalVehicles = totalVehicles + 1
+                playerState.vehicle.config = vehicleConfig;
+                playerState.vehicle.positionRaw = MP.GetPositionRaw(pid, vehicleId)
+                break
+            end
+        end
+    end
+
+    playerState.totalVehicles = totalVehicles
+
+    return {
+        totalVehicles = totalVehicles
+    }
+end
+
 local function beginFlood()
+    MP.hSendChatMessage(-1, "^2^oThe water has begun to rise...")
+
+    M.state.floodStartQueued = false
     M.options.enabled = true;
     M.countdown.currentCount = 0;
 
     MP.CreateEventTimer("ET_Update", 25)
 
+    C.setDynamicCollisionEnabled(true)
     C.setVehicleFreeze(false)
+    -- for pid, playerState in pairs(M.state.players) do
+    --     updatePlayerStateVehicle(pid)
+    --     if getPlayerState(pid).vehicle.config and getPlayerState(pid).vehicle.config.vid then
+    --     end
+    -- end
 end
 
 local function startCountdown()
@@ -75,7 +131,7 @@ local function startCountdown()
     
     MP.hSendChatMessage(-1, "^2^oFlood is beginning...")
 
-    M.countdown.started = false;
+    M.countdown.started = true;
     MP.CreateEventTimer("ET_Countdown", 1000)
 end
 
@@ -93,36 +149,39 @@ local function resetCountdown()
     M.countdown.started = false;
 end
 
-local function getPlayerState(pid)
-    if M.state.players[pid] ~= nil then
-        return M.state.players[pid]
-    else
-        return false
+local function startAutoStartCountdown()    
+    MP.hSendChatMessage(-1, "^2^oFlood will start in " .. M.autoStartCountdown.count .. " seconds...")
+
+    if isFloodOrCountdownStarted() then
+        return
     end
+
+    if M.autoStartCountdown.started then
+        return
+    end
+
+    M.autoStartCountdown.started = true;
+    MP.CreateEventTimer("ET_AutoStartCountdown", 1000)
 end
 
-local function updatePlayerStateVehicle(pid)
-    local playerVehicles = MP.GetPlayerVehicles(pid);
-    local playerState = getPlayerState(pid);
+local function autoStartCountdownComplete()
+    MP.CancelEventTimer("ET_AutoStartCountdown")
+    M.autoStartCountdown.started = false;
+    print("Auto start countdown complete")
+    M.commands["start"]("")
+end
 
-    if playerVehicles then
-        for vehicleId, vehicleConfigRaw in pairs(playerVehicles) do
-            local start = string.find(vehicleConfigRaw, "{")
-            local formattedVehicleConfig = string.sub(vehicleConfigRaw, start, -1)
-            local vehicleConfig = Util.JsonDecode(formattedVehicleConfig)
-
-            if vehicleConfig.jbm ~= "unicycle" then
-                playerState.vehicle.config = vehicleConfig;
-                playerState.vehicle.positionRaw = MP.GetPositionRaw(pid, vehicleId)
-                break
-            end
-        end
-    end
+local function resetAutoStartCountdown()
+    MP.CancelEventTimer("ET_AutoStartCountdown")
+    M.autoStartCountdown.currentCount = 0;
+    M.autoStartCountdown.started = false;
 end
 
 local function updatePlayersStatesVehicles()
     for pid, playerState in pairs(M.state.players) do
         updatePlayerStateVehicle(pid)
+        -- playerState.totalVehicles = totalVehicles
+
     end
 end
 
@@ -164,6 +223,10 @@ local function setPlayerDead(pid, dead)
     M.state.players[pid].dead = dead
 end
 
+local function setPlayerStatus(pid, status)
+    M.state.players[pid].status = status
+end
+
 local function resetVehiclesToStartPositions()
     local positions = {}
     local playerCount = 0
@@ -174,8 +237,6 @@ local function resetVehiclesToStartPositions()
     for i = 1, math.min(playerCount, #M.mapConfig.startPositions) do
         table.insert(positions, i)
     end
-
-    C.setDynamicCollisionEnabled(false)
     
     for pid, playerState in pairs(M.state.players) do
         if #positions > 0 then
@@ -198,53 +259,79 @@ local function resetVehiclesToStartPositions()
         end
     end
 
-    C.setDynamicCollisionEnabled(true)
-end
-
-local function isFloodOrCountdownStarted()
-    return M.options.enabled or M.countdown.started
 end
 
 local function ensureVehiclesAreAboveWaterLine()
+    local someoneDied = false
+    local playersRemaining = 0
+    
     for pid, playerState in pairs(M.state.players) do
         if playerState.vehicle.positionRaw then
-            if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel - 7 and not playerState.dead then
-                playerState.dead = true
-                print("Player " .. pid .. " is dead")
-                MP.hSendChatMessage(pid, "^4" .. MP.GetPlayerName(pid) .. " ^r^3^l^o died...")
+            if playerState.status == "inGame" then
+                if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel - 7 and not playerState.dead then
+                    playerState.dead = true
+                    print("Player " .. pid .. " is dead")
+                    MP.hSendChatMessage(-1, "^4" .. MP.GetPlayerName(pid) .. " ^r^3^l^o died...")
+                    someoneDied = true
+                end
+
+                if not playerState.dead then
+                    playersRemaining = playersRemaining + 1
+                end
             end
         end
+    end
+
+    if someoneDied then
+        someoneDied = false
+        MP.hSendChatMessage(-1, "^4 Players remaining:^l" .. playersRemaining)
     end
 end
 
 local function stopFloodWhenPlayersDead()
-    local allPlayersDead = true
+    local totalPlayers = 0
+    local playersRemaining = 0
+    local lastPlayerAlivePid = nil
+
     for pid, playerState in pairs(M.state.players) do
-        if not playerState.dead then
-            allPlayersDead = false
-            break
+        if not playerState.dead and playerState.status == "inGame" then
+            playersRemaining = playersRemaining + 1
+            lastPlayerAlivePid = pid
         end
+
+        if playerState.status == "inGame" then
+            totalPlayers = totalPlayers + 1
+        end
+
     end
 
-    if allPlayersDead then
-        MP.hSendChatMessage(-1, "^6^oAll players are dead, stopping flood")
-        M.commands["stop"]("")
+    if playersRemaining == 1 and totalPlayers > 1 then
+        if not M.state.floodStartQueued then
+            M.state.floodStartQueued = true
+            local lastPlayerAliveName = MP.GetPlayerName(lastPlayerAlivePid)
+            MP.hSendChatMessage(-1, "^6^o" .. lastPlayerAliveName .. " is the last player alive, stopping flood in 10 seconds")
+
+            U.setTimeout(function()
+                M.commands["stop"]("")
+                startAutoStartCountdown()
+            end, 10000)
+        end
     end
 end
 
 local function checkForNoVehicles()
-    local noVehiclesSpawned = false
+    local vehiclesSpawned = false
     for pid, playerState in pairs(M.state.players) do
         local playerVehicles = MP.GetPlayerVehicles(pid);
         local playerState = getPlayerState(pid);
 
-        if not playerVehicles or (type(playerVehicles) == "table" and (playerVehicles.count == 0 or next(playerVehicles) == nil)) then
-            noVehiclesSpawned = true
+        if playerVehicles or (type(playerVehicles) == "table" and (playerVehicles.count > 0 or next(playerVehicles) ~= nil)) then
+            vehiclesSpawned = true
             break
         end
     end
 
-    return noVehiclesSpawned
+    return not vehiclesSpawned
 end
 
 local function stopFloodWhenNoVehicles()
@@ -264,11 +351,37 @@ local function welcomePlayer(pid)
     MP.hSendChatMessage(pid, "Use ^b/flood_speed^r to set the flood speed.")
 end
 
+local function prepareFlood()
+    print("Preparing flood")
+
+    C.setDynamicCollisionEnabled(false)
+    resetVehiclesToStartPositions()
+    resetPlayersRespawnedCount()
+    resetAutoStartCountdown()
+    resetCountdown()
+
+    for pid, playerState in pairs(M.state.players) do
+        setPlayerDead(pid, false)
+        if playerState.totalVehicles > 0 then
+            setPlayerStatus(pid, "inGame")
+        else
+            setPlayerStatus(pid, "spectating")
+        end
+    end
+
+    -- Start countdown after a delay
+    U.setTimeout(startCountdown, 700)
+end
+
 -- BeamMP events
 
 function onPlayerJoin(pid)
     C.setUiLayout(pid, "flood")
-    welcomePlayer(pid)
+    C.spawnDefaultVehicle(pid)
+
+    U.setTimeout(function()
+        welcomePlayer(pid)
+    end, 1000)
 
     local success = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
     if success then
@@ -284,19 +397,19 @@ function onPlayerJoin(pid)
     if M.options.rainVolume == -1.0 or M.options.rainVolume > 0.0 then
         MP.TriggerClientEvent(pid, "E_SetRainVolume", tostring(M.options.rainVolume))
     end
-
-    C.spawnDefaultVehicle(pid)
     updatePlayerState(pid)
 end
 
 function onPlayerDisconnect(pid)
     deletePlayerState(pid)
-
-    return true
 end
 
 function onVehicleSpawn(pid, vid, data)
-    return true
+    if MP.GetPlayerCount() >= 1 and not M.autoStartCountdown.started and not M.countdown.started and not M.options.enabled and not M.state.floodStartQueued then
+        startAutoStartCountdown()
+    end
+
+    return 0
 end
 
 function onVehicleReset(pid, pName, data)
@@ -304,7 +417,7 @@ function onVehicleReset(pid, pName, data)
 end
 
 function onVehicleEdited(pid, pName, data)
-    return true
+    return 0
 end
 
 function onVehicleDeleted(pid, pName)
@@ -318,7 +431,6 @@ function onInit()
         onPlayerJoin(pid)
     end
 end
-
 
 function T_FreezeVehicles()
     M.state.ET_FreezeVehicles.tick = M.state.ET_FreezeVehicles.tick + 1;
@@ -342,6 +454,18 @@ function T_Countdown()
             end
 
             M.countdown.currentCount = M.countdown.currentCount + 1;
+        end
+    end
+end
+
+function T_AutoStartCountdown()
+    if (M.autoStartCountdown.currentCount <= M.autoStartCountdown.count) then
+        local currentCount = M.autoStartCountdown.count - M.autoStartCountdown.currentCount
+
+        if M.autoStartCountdown.currentCount == M.autoStartCountdown.count then
+            autoStartCountdownComplete()
+        else
+            M.autoStartCountdown.currentCount = M.autoStartCountdown.currentCount + 1;
         end
     end
 end
@@ -409,7 +533,6 @@ function E_OnInitialize(pid, waterLevel)
         return
     elseif not waterLevel and invalidCount >= 2 then
         print("This map doesn't have an ocean, disabling flood")
-        M.isOceanValid = false
         return
     end
 
@@ -421,55 +544,53 @@ function E_OnInitialize(pid, waterLevel)
 
     C.spawnDefaultVehicle(pid)
     updatePlayerState(pid)
+    
+    if MP.GetPlayerCount() >= 1 and not M.autoStartCountdown.started and not M.countdown.started and not M.options.enabled then
+        startAutoStartCountdown()
+    end
 end
 
 M.commands["start"] = function(pid)
-    if not M.isOceanValid then
-        MP.hSendChatMessage(pid, "This map doesn't have an ocean, unable to flood")
-        return
-    end
+    if pid then
+        if not M.isOceanValid then
+            MP.hSendChatMessage(pid, "This map doesn't have an ocean, unable to flood")
+            return
+        end
 
-    if isFloodOrCountdownStarted() then
-        MP.hSendChatMessage(pid, "Flood has already started")
-        return
-    end
-    
-    if checkForNoVehicles() then
-        MP.hSendChatMessage(pid, "^4^lNo vehicles found, unable to start flood")
-        return
+        if isFloodOrCountdownStarted() then
+            MP.hSendChatMessage(pid, "Flood has already started")
+            return
+        end
+        
+        if checkForNoVehicles() then
+            MP.hSendChatMessage(pid, "^4^lNo vehicles found, unable to start flood")
+            return
+        end
     end
     
     if M.options.oceanLevel == 0.0 then
         M.options.oceanLevel = M.initialLevel
     end
 
-    resetVehiclesToStartPositions()
-    resetPlayersRespawnedCount()
-
-    for pid, playerState in pairs(M.state.players) do
-        setPlayerDead(pid, false)
-    end
-
-    startCountdown()
+    prepareFlood()
 end
 
 M.commands["stop"] = function(pid)
-    if not M.options.enabled and not M.countdown.started then
-        MP.hSendChatMessage(pid, "Flood is already stopped")
-        return
-    end
-
     MP.CancelEventTimer("ET_Update")
     resetPlayersRespawnedCount()
+    resetAutoStartCountdown()
     resetCountdown();
     C.setVehicleRecoveryEnabled(true)
+    resetVehiclesToStartPositions()
 
+    M.state.floodStartQueued = false
     M.options.enabled = false
     M.options.oceanLevel = M.initialLevel
     setWaterLevel(M.initialLevel)
 
     for pid, playerState in pairs(M.state.players) do
         setPlayerDead(pid, false)
+        setPlayerStatus(pid, "spectating")
     end
 
     MP.hSendChatMessage(-1, "The flood has stopped!")
@@ -701,6 +822,7 @@ MP.RegisterEvent("onPLayerDisconnect", "onPLayerDisconnect")
 MP.RegisterEvent("E_OnInitiliaze", "E_OnInitialize")
 MP.RegisterEvent("ET_Update", "T_Update")
 MP.RegisterEvent("ET_Countdown", "T_Countdown")
+MP.RegisterEvent("ET_AutoStartCountdown", "T_AutoStartCountdown")
 MP.CreateEventTimer("ET_Update", 25)
 
 -- Server events

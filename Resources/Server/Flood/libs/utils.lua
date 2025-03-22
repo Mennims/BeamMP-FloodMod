@@ -15,7 +15,33 @@ function deepcopy(orig)
     return copy
 end
 
+function setTimeout(func, delay, precise)
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    local str = ""
+    for i = 1, 10 do
+        local rand = math.random(1, #chars)
+        str = str .. string.sub(chars, rand, rand)
+    end
+
+    local eventTimerName = "ET_" .. str
+
+    _G["T_" .. str] = function()
+        func()
+        MP.CancelEventTimer(eventTimerName)
+        _G["T_" .. str] = nil
+    end
+
+    -- Can't unregister event, may cause memory leaks
+    MP.RegisterEvent(eventTimerName, "T_" .. str)
+
+    if precise then 
+        MP.CreateEventTimer(eventTimerName, delay, MP.CallStrategy.Precise)
+    else
+        MP.CreateEventTimer(eventTimerName, delay)
+    end
+end
 
 M.deepcopy = deepcopy
+M.setTimeout = setTimeout
 
 return M
