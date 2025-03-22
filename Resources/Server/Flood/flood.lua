@@ -245,7 +245,6 @@ local function resetVehiclesToStartPositions()
             table.remove(positions, randomIndex)
 
             updatePlayerStateVehicle(pid)
-            local playerState = getPlayerState(pid)
 
             if playerState.vehicle.config and playerState.vehicle.config.vid then
                 print("Entering vehicle " .. playerState.vehicle.config.vid)
@@ -258,7 +257,6 @@ local function resetVehiclesToStartPositions()
             end
         end
     end
-
 end
 
 local function ensureVehiclesAreAboveWaterLine()
@@ -268,7 +266,7 @@ local function ensureVehiclesAreAboveWaterLine()
     for pid, playerState in pairs(M.state.players) do
         if playerState.vehicle.positionRaw then
             if playerState.status == "inGame" then
-                if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel - 7 and not playerState.dead then
+                if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel - 4 and not playerState.dead then
                     playerState.dead = true
                     print("Player " .. pid .. " is dead")
                     MP.hSendChatMessage(-1, "^4" .. MP.GetPlayerName(pid) .. " ^r^3^l^o died...")
@@ -305,18 +303,28 @@ local function stopFloodWhenPlayersDead()
 
     end
 
-    if playersRemaining == 1 and totalPlayers > 1 then
-        if not M.state.floodStartQueued then
-            M.state.floodStartQueued = true
+    if not M.state.floodStartQueued then
+        if (playersRemaining == 1 and totalPlayers > 1) then
             local lastPlayerAliveName = MP.GetPlayerName(lastPlayerAlivePid)
             MP.hSendChatMessage(-1, "^6^o" .. lastPlayerAliveName .. " is the last player alive, stopping flood in 10 seconds")
 
+            M.state.floodStartQueued = true
             U.setTimeout(function()
                 M.commands["stop"]("")
                 startAutoStartCountdown()
             end, 10000)
+            
+        elseif playersRemaining == 0 then
+            MP.hSendChatMessage(-1, "^6^oNo players remaining, stopping flood")
+
+            M.state.floodStartQueued = true
+            U.setTimeout(function()
+                M.commands["stop"]("")
+                startAutoStartCountdown()
+            end, 2000)
         end
     end
+
 end
 
 local function checkForNoVehicles()
@@ -355,7 +363,6 @@ local function prepareFlood()
     print("Preparing flood")
 
     C.setDynamicCollisionEnabled(false)
-    resetVehiclesToStartPositions()
     resetPlayersRespawnedCount()
     resetAutoStartCountdown()
     resetCountdown()
@@ -369,8 +376,12 @@ local function prepareFlood()
         end
     end
 
-    -- Start countdown after a delay
-    U.setTimeout(startCountdown, 700)
+    U.setTimeout(function()
+        resetVehiclesToStartPositions()
+
+        -- Start countdown after a delay
+        U.setTimeout(startCountdown, 700)
+    end, 250)
 end
 
 -- BeamMP events
@@ -381,7 +392,7 @@ function onPlayerJoin(pid)
 
     U.setTimeout(function()
         welcomePlayer(pid)
-    end, 1000)
+    end, 2000)
 
     local success = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
     if success then
@@ -580,8 +591,13 @@ M.commands["stop"] = function(pid)
     resetPlayersRespawnedCount()
     resetAutoStartCountdown()
     resetCountdown();
-    C.setVehicleRecoveryEnabled(true)
-    resetVehiclesToStartPositions()
+    C.setDynamicCollisionEnabled(false)
+
+    U.setTimeout(function()
+        C.setVehicleRecoveryEnabled(true)
+        resetVehiclesToStartPositions()
+        C.setDynamicCollisionEnabled(true)
+    end, 250)
 
     M.state.floodStartQueued = false
     M.options.enabled = false
@@ -780,6 +796,19 @@ M.commands["printSettings"] = function(pid)
     end
 end
 
+M.commands["debug"] = function(pid, pos)
+    pos = tonumber(pos) or nil
+    if not pos then
+        MP.hSendChatMessage(pid, "Invalid position")
+        return
+    end
+
+    local startPos = M.mapConfig.startPositions[pos]
+    if startPos then
+        MP.TriggerClientEvent(pid, "E_ResetVehicleToPos", Util.JsonEncode(startPos))
+    end
+end
+
 function E_RequestResetToRoad(pid, ...)
     if not isFloodOrCountdownStarted() then
         return
@@ -818,7 +847,7 @@ MP.RegisterEvent("onVehicleReset", "onVehicleReset")
 MP.RegisterEvent("onVehicleEdited", "onVehicleEdited")
 MP.RegisterEvent("onVehicleDeleted", "onVehicleDeleted")
 MP.RegisterEvent("onPlayerJoin", "onPlayerJoin")
-MP.RegisterEvent("onPLayerDisconnect", "onPLayerDisconnect")
+MP.RegisterEvent("onPlayerDisconnect", "onPlayerDisconnect")
 MP.RegisterEvent("E_OnInitiliaze", "E_OnInitialize")
 MP.RegisterEvent("ET_Update", "T_Update")
 MP.RegisterEvent("ET_Countdown", "T_Countdown")
