@@ -62,7 +62,34 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 
 			seaContainer.hidden = true;
 
-			// Remove any existing streamsUpdate listeners
+			function copyToClipboard(text) {
+				let textarea = document.createElement("textarea");
+				textarea.value = text;
+				document.body.appendChild(textarea);
+				textarea.select();
+				document.execCommand("copy");
+				document.body.removeChild(textarea);
+			}
+
+			$scope.discord = () => {
+				copyToClipboard('https://discord.gg/p6GTUMbEm8');
+				showSocialsText();
+			}
+
+			$scope.patreon = () => {
+				copyToClipboard('https://patreon.com/KeenanSmith');
+				showSocialsText();
+			}
+
+			function showSocialsText() {
+				const socialsText = document.querySelector('.wave-app .socials-text');
+				socialsText.style.opacity = '1';
+				
+				setTimeout(() => {
+					socialsText.style.opacity = '0';
+				}, 2000);
+			}
+
 			$scope.$$listeners.streamsUpdate = [];
 
 			$scope.$on('streamsUpdate', function (event, streams) {
@@ -75,6 +102,10 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 					const maxMovement = appContainer.offsetHeight;
 					const gain = 0.70;
 					const minDistance = 0.01;
+
+				console.log(seaLevel, maxMovement)
+
+
 					const distance = Math.max($scope.difference, minDistance);
 					const scaledMovement = maxMovement * Math.log10(distance) * gain;
 

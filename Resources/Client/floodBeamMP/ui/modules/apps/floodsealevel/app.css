@@ -35,12 +35,11 @@
 	left: 0;
 	width: 100%;
 	height: 100%;
-	z-index: 1;
 	padding: 2%
 }
 
 .sea-level-difference {
-	font-size: 1.1vw;
+	font-size: 1.2vw;
 }
 
 * {
@@ -50,9 +49,83 @@
 }
 
 .wave-app canvas {
+	z-index: -2;
 	width:100%;
 	height:100%;
 	overflow: hidden;
 	cursor: ns-resize;
     transform: translate(0%, -33%);
+}
+
+.wave-app .socials-container {
+	z-index: 1;
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.wave-app .socials-container .discord-container {
+	cursor: pointer;
+	position: absolute;
+    bottom: 0;
+    right: 6%;
+    width: 17%;	
+}
+
+.wave-app .socials-container .discord-container img {
+	padding: 13%;
+	border-radius: 50%;
+	transition: background-color 0.2s ease-out, transform 0.2s ease-in;
+}
+
+.wave-app .socials-container .discord-container img:hover {
+	background-color: #f60c;
+}
+
+.wave-app .socials-container .discord-container img:active {
+	transition: background-color 0.1s ease-out, transform 2s ease-in !important;
+	background-color: white;
+}
+
+.wave-app .socials-container .patreon-container {
+	cursor: pointer;
+	position: absolute;
+	bottom: 0;
+	left: 1%;
+	width: 17%;
+}
+
+.wave-app .socials-container .patreon-container img {
+	padding: 13%;
+	border-radius: 50%;
+	transition: background-color 0.2s ease-out, transform 0.2s ease-in;
+}
+
+.wave-app .socials-container .patreon-container img:hover {
+	background-color: #f60c;
+}
+
+.wave-app .socials-container .patreon-container img:active {
+	transition: background-color 0.1s ease-out, transform 2s ease-in !important;
+	background-color: white;
+}
+
+.wave-app .socials-container img {
+	width: 100%;
+	height: 100%;
+}
+
+.wave-app .socials-text {
+	color: #f60;
+	font-weight: bold;
+	z-index: -1;
+	opacity: 0;
+	transition: opacity 0.3s ease-in-out;
+	position: absolute;
+    bottom: 6%;
+    width: 100%;
+    text-align: center;
+    font-size: 100%;
 }
