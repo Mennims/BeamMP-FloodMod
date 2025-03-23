@@ -53,14 +53,17 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 			const appContainer = document.getElementById('app-container');
 			const seaContainer = document.getElementById('sea-container');
 			
-			let playerVehicleZ = null;
-			let seaLevel = null;
+			let playerVehicleZ = 0;
+			let seaLevel = 0;
 
 			$scope.seaPosition = 0;
 			$scope.difference = 0;
-			$scope.seaLevel = null;
+			$scope.seaLevel = 0;
 
 			seaContainer.hidden = true;
+
+			// Remove any existing streamsUpdate listeners
+			$scope.$$listeners.streamsUpdate = [];
 
 			$scope.$on('streamsUpdate', function (event, streams) {
 				playerVehicleZ = streams.sensors.position.z;
@@ -70,13 +73,21 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 
 				if (playerVehicleZ && seaLevel && seaContainer) {
 					const maxMovement = appContainer.offsetHeight;
-					const gain = 0.23;
+					const gain = 0.70;
 					const minDistance = 0.01;
-
 					const distance = Math.max($scope.difference, minDistance);
 					const scaledMovement = maxMovement * Math.log10(distance) * gain;
 
-					$scope.seaPosition =(scaledMovement + (appContainer.offsetHeight * 0.3));
+					let newSeaPosition = (scaledMovement + (appContainer.offsetHeight * 0.3));
+
+					const minSeaPosition = maxMovement + maxMovement * 0.25;
+
+					if (newSeaPosition > minSeaPosition) {
+						$scope.seaPosition = minSeaPosition;
+					} else {
+						$scope.seaPosition = newSeaPosition;
+					}
+
 					$scope.seaLevel = seaLevel;
 
 					const multiplier = Math.pow(10, 1);
