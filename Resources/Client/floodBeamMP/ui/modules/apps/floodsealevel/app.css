@@ -3,22 +3,22 @@
 	top: 0;
 	left: 0;
 	width: 100%;
-	height: 200%;
-	z-index: 1;
+	height: 140%;
 	pointer-events: none;
 }
 
 #app-container {
 	position: relative;
 	width: 100%;
-	height: 200%;
+	height: 100%;
 }
 
 .sea {
 	position: absolute;
 	width: 100%;
-	height: 500px;
+	height: 100%;
 	transition: transform 0.3s ease-in-out;
+	z-index: -1;
 }
 
 .carIcon {
@@ -27,6 +27,7 @@
     top: 17%;
     left: 50%;
     transform: translate(-50%, -50%);
+	z-index: -1
 }
 
 .metrics-container {
@@ -50,11 +51,11 @@
 
 .wave-app canvas {
 	z-index: -2;
-	width:100%;
-	height:100%;
+	width: 100%;
+	height: 100%;
 	overflow: hidden;
 	cursor: ns-resize;
-    transform: translate(0%, -33%);
+    transform: translate(0%, -24%);
 }
 
 .wave-app .socials-container {
@@ -84,11 +85,6 @@
 	background-color: #f60c;
 }
 
-.wave-app .socials-container .discord-container img:active {
-	transition: background-color 0.1s ease-out, transform 2s ease-in !important;
-	background-color: white;
-}
-
 .wave-app .socials-container .patreon-container {
 	cursor: pointer;
 	position: absolute;
@@ -107,10 +103,20 @@
 	background-color: #f60c;
 }
 
-.wave-app .socials-container .patreon-container img:active {
+.wave-app .socials-container .patreon-container img:active,
+.wave-app .socials-container .discord-container img:active {
 	transition: background-color 0.1s ease-out, transform 2s ease-in !important;
-	background-color: white;
+	background-color: white !important;
 }
+
+.wave-app .socials-container .patreon-container img:active,
+.wave-app .socials-container .discord-container img:active,
+.wave-app .socials-container .patreon-container.active img,
+.wave-app .socials-container .discord-container.active img {
+	transition: background-color 0.5s ease-out, transform 2s ease-in !important;
+	background-color: white !important;
+}
+
 
 .wave-app .socials-container img {
 	width: 100%;
@@ -125,7 +131,9 @@
 	transition: opacity 0.3s ease-in-out;
 	position: absolute;
     bottom: 6%;
-    width: 100%;
     text-align: center;
     font-size: 100%;
+	width: 50%;
+    right: 50%;
+    transform: translate(50%);
 }

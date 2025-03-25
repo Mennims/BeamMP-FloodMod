@@ -10,16 +10,18 @@
 				src="/ui/modules/apps/floodsealevel/discord.svg"
 				href="http-external://discord.com" 
 				alt="Join our Discord"
-				ng-click="discord()">
+				ng-click="discord()"
+				ng-mouseover="showSocialsText('Copy Discord Link')">
 
 		</div>
-		<div class="socials-text"><span>Link Copied</span></div>
+		<div class="socials-text"><span></span></div>
 		<div class="patreon-container">
 				<img
 					ng-src="/ui/modules/apps/floodsealevel/patreon.svg"
 					src="/ui/modules/apps/floodsealevel/patreon.svg" 
 					href="http-external://patreon.com" alt="Join our Patreon"
-				ng-click="patreon()">
+					ng-click="patreon()"
+					ng-mouseover="showSocialsText('Copy Patreon Link')">
 		</div>
 	</div>
 

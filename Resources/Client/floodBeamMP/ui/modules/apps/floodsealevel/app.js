@@ -19,13 +19,24 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 					await loadScript('/ui/modules/apps/floodsealevel/wave/js/Wave.js');
 
 					if (window.Wave) {
-						Wave.init();
+						setTimeout(() => {
+							setTimeout(() => {
+								Wave.init();
+							}, 250);
+						});
+						
+						
 					}
-				} catch (error) {
-				}
+				} catch (error) {}
 			}
 
-			loadAllScripts();
+			if (window.Wave) {
+				window.Wave = undefined;
+				loadAllScripts();
+			} else {
+				loadAllScripts();
+			}
+
 			const LuaSeaLevel = `
 				(function()
 					local function findObject(objectName, className)
@@ -73,21 +84,57 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 
 			$scope.discord = () => {
 				copyToClipboard('https://discord.gg/p6GTUMbEm8');
-				showSocialsText();
+				$scope.showSocialsText('Link Copied');
 			}
 
 			$scope.patreon = () => {
 				copyToClipboard('https://patreon.com/KeenanSmith');
-				showSocialsText();
+				$scope.showSocialsText('Link Copied');
 			}
 
-			function showSocialsText() {
+			$scope.showSocialsText = (text) => {
 				const socialsText = document.querySelector('.wave-app .socials-text');
+				socialsText.innerHTML = text;
 				socialsText.style.opacity = '1';
 				
 				setTimeout(() => {
 					socialsText.style.opacity = '0';
 				}, 2000);
+			}
+
+			function pulseSocials() {
+				const discordElement = document.querySelector('.wave-app .socials-container .discord-container');
+				const patreonElement = document.querySelector('.wave-app .socials-container .patreon-container');
+				if (discordElement && patreonElement) {
+					patreonElement.classList.add('active');
+					setTimeout(() => {
+						patreonElement.classList.remove('active');
+					}, 1700);
+					
+					setTimeout(() => {
+						discordElement.classList.add('active');
+						setTimeout(() => {
+							discordElement.classList.remove('active');
+						}, 1500);
+					}, 300);	
+				}
+			}
+
+			function schedulePulseSocials() {
+				const minInterval = 120000;
+				const maxInterval = 240000;
+				const randomInterval = Math.floor(Math.random() * (maxInterval - minInterval + 1)) + minInterval;
+				
+				setTimeout(() => {
+					pulseSocials();
+					schedulePulseSocials();
+				}, randomInterval);
+			}
+
+			let pulseScheduled = false;
+			if (!pulseScheduled) {
+				schedulePulseSocials();
+				pulseScheduled = true;
 			}
 
 			$scope.$$listeners.streamsUpdate = [];
@@ -100,21 +147,20 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 
 				if (playerVehicleZ && seaLevel && seaContainer) {
 					const maxMovement = appContainer.offsetHeight;
-					const gain = 0.70;
+					const gain = 0.7;
 					const minDistance = 0.01;
-
-				console.log(seaLevel, maxMovement)
-
 
 					const distance = Math.max($scope.difference, minDistance);
 					const scaledMovement = maxMovement * Math.log10(distance) * gain;
 
-					let newSeaPosition = (scaledMovement + (appContainer.offsetHeight * 0.3));
+					let newSeaPosition = (scaledMovement + (appContainer.offsetHeight - (appContainer.offsetHeight * 1.4)));
 
-					const minSeaPosition = maxMovement + maxMovement * 0.25;
+					const minSeaPosition = maxMovement * 0.97;
 
 					if (newSeaPosition > minSeaPosition) {
 						$scope.seaPosition = minSeaPosition;
+					} else if (newSeaPosition < 0) {
+						$scope.seaPosition = 0;
 					} else {
 						$scope.seaPosition = newSeaPosition;
 					}
