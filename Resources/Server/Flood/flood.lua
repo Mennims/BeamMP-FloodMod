@@ -9,7 +9,8 @@ local playerTemplate = {
     status = "spectating", -- Whether player is spectating or in game. spectating|inGame
     dead = false, -- Player is dead
     respawnedCount = 0, -- Times the player has respawned
-    totalVehicles = 0 -- Total vehicles the player has spawned, excluding unicycles
+    totalVehicles = 0, -- Total vehicles the player has spawned, excluding unicycles
+    minRoadDistance = 999999 -- Minimum road distance (closest to destination)
 }
 
 local vehicleTemplate = {
@@ -53,6 +54,7 @@ M.autoStartCountdown = {
 M.state = {
     floodStartQueued = false,
     players = {},
+    clientStates = {} -- Store client state updates here
 }
 
 local invalidCount = 0
@@ -284,6 +286,34 @@ local function ensureVehiclesAreAboveWaterLine()
     end
 end
 
+local function resetPlayersMinRoadDistance()
+    for pid, playerState in pairs(M.state.players) do
+        playerState.minRoadDistance = 999999
+    end
+end
+
+local function getPlayerRankings()
+    local rankings = {}
+    
+    for pid, playerState in pairs(M.state.players) do
+        if playerState.status == "inGame" then
+            table.insert(rankings, {
+                pid = pid,
+                name = playerState.name,
+                minRoadDistance = playerState.minRoadDistance,
+                dead = playerState.dead
+            })
+        end
+    end
+    
+    -- Sort by min road distance (ascending)
+    table.sort(rankings, function(a, b) 
+        return a.minRoadDistance < b.minRoadDistance
+    end)
+    
+    return rankings
+end
+
 local function stopFloodWhenPlayersDead()
     local totalPlayers = 0
     local playersRemaining = 0
@@ -298,13 +328,32 @@ local function stopFloodWhenPlayersDead()
         if playerState.status == "inGame" then
             totalPlayers = totalPlayers + 1
         end
-
     end
 
     if not M.state.floodStartQueued then
         if (playersRemaining == 1 and totalPlayers > 1) then
             local lastPlayerAliveName = MP.GetPlayerName(lastPlayerAlivePid)
             MP.hSendChatMessage(-1, "^6^o^l" .. lastPlayerAliveName .. " ^r^6^l^ois the last player alive, stopping flood in 10 seconds")
+            
+            -- Show rankings
+            local rankings = getPlayerRankings()
+            MP.hSendChatMessage(-1, "^7^lRankings")
+            for i, player in ipairs(rankings) do
+                local playerColour = "^f"
+
+                if i == 1 then
+                    playerColour = "^6"
+                elseif i == 2 then
+                    playerColour = "^2"
+                elseif i == 3 then
+                    playerColour = "^3"
+                end
+
+                local status = player.dead and "^1DEAD" or "^2ALIVE"
+                MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
+                                    math.floor(player.minRoadDistance) .. "m " .. status)
+                if i >= 5 then break end -- Only show top 5
+            end
 
             M.state.floodStartQueued = true
             U.setTimeout(function()
@@ -314,6 +363,26 @@ local function stopFloodWhenPlayersDead()
             
         elseif playersRemaining == 0 then
             MP.hSendChatMessage(-1, "^6^oNo players remaining, stopping flood")
+            
+            -- Show rankings
+            local rankings = getPlayerRankings()
+            MP.hSendChatMessage(-1, "^7^lRankings")
+            for i, player in ipairs(rankings) do
+                local playerColour = "^f"
+
+                if i == 1 then
+                    playerColour = "^6"
+                elseif i == 2 then
+                    playerColour = "^2"
+                elseif i == 3 then
+                    playerColour = "^3"
+                end
+
+                local status = player.dead and "^1DEAD" or "^2ALIVE"
+                MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
+                                    math.floor(player.minRoadDistance) .. "m " .. status)
+                if i >= 5 then break end -- Only show top 5
+            end
 
             M.state.floodStartQueued = true
             U.setTimeout(function()
@@ -322,7 +391,6 @@ local function stopFloodWhenPlayersDead()
             end, 2000)
         end
     end
-
 end
 
 local function checkForNoVehicles()
@@ -347,6 +415,13 @@ local function stopFloodWhenNoVehicles()
     end
 end
 
+function updateDestinationForClients(destinationPos)
+    if not destinationPos then return end
+    
+    MP.TriggerClientEvent(-1, "E_SetDestinationPos", Util.JsonEncode(destinationPos))
+    print("Destination position updated for all clients")
+end
+
 local function welcomePlayer(pid)
     MP.hSendChatMessage(pid, "^eWelcome to the flood!")
     MP.hSendChatMessage(pid, "Use ^2/flood_start^r to start the flood.")
@@ -362,6 +437,7 @@ local function prepareFlood()
 
     C.setDynamicCollisionEnabled(false)
     resetPlayersRespawnedCount()
+    resetPlayersMinRoadDistance() -- Reset min road distance for new round
     resetAutoStartCountdown()
     resetCountdown()
 
@@ -372,6 +448,10 @@ local function prepareFlood()
         else
             setPlayerStatus(pid, "spectating")
         end
+    end
+
+    if M.mapConfig.destination and M.mapConfig.destination.pos then
+        updateDestinationForClients(M.mapConfig.destination.pos)
     end
 
     U.setTimeout(function()
@@ -398,6 +478,11 @@ function onPlayerJoin(pid)
     else
         print("Failed to send \"E_OnPlayerLoaded\" to " .. pid)
     end
+    
+    if M.mapConfig.destination and M.mapConfig.destination.pos then
+        MP.TriggerClientEvent(pid, "E_SetDestinationPos", Util.JsonEncode(M.mapConfig.destination.pos))
+    end
+    
     -- Sync rain & volume
     if M.options.rainAmount > 0.0 then
         MP.TriggerClientEvent(pid, "E_SetRainAmount", tostring(M.options.rainAmount))
@@ -411,6 +496,7 @@ end
 
 function onPlayerDisconnect(pid)
     deletePlayerState(pid)
+    M.state.clientStates[pid] = nil -- Clean up client state
 end
 
 function onVehicleSpawn(pid, vid, data)
@@ -596,8 +682,6 @@ M.commands["stop"] = function(pid)
         setPlayerDead(pid, false)
         setPlayerStatus(pid, "spectating")
     end
-
-    MP.hSendChatMessage(-1, "The flood has stopped!")
 end
 
 M.commands["reset"] = function(pid)
@@ -827,6 +911,26 @@ function E_RequestResetToRoad(pid, ...)
     incrementPlayerRespawnedCount(pid)
 end
 
+function E_ClientStateUpdate(pid, stateJson)
+    local clientState = Util.JsonDecode(stateJson)
+    if not clientState then
+        return
+    end
+    
+    M.state.clientStates[pid] = clientState
+    
+    -- Update minimum road distance if player is in game and not dead
+    if clientState.roadDistance and M.state.players[pid] and 
+       M.state.players[pid].status == "inGame" and not M.state.players[pid].dead then
+        
+        local currentDistance = tonumber(clientState.roadDistance)
+        if currentDistance and currentDistance < M.state.players[pid].minRoadDistance then
+            M.state.players[pid].minRoadDistance = currentDistance
+        end
+    end
+end
+
+
 MP.RegisterEvent("onInit", "onInit")
 MP.RegisterEvent("onVehicleSpawn", "onVehicleSpawn")
 MP.RegisterEvent("onVehicleReset", "onVehicleReset")
@@ -842,5 +946,23 @@ MP.CreateEventTimer("ET_Update", 25)
 
 -- Server events
 MP.RegisterEvent("E_RequestResetToRoad", "E_RequestResetToRoad")
+MP.RegisterEvent("E_ClientStateUpdate", "E_ClientStateUpdate")
+
+-- Add a command to show current rankings
+M.commands["rankings"] = function(pid)
+    local rankings = getPlayerRankings()
+    MP.hSendChatMessage(pid, "^5^l===== CLOSEST TO DESTINATION =====")
+    
+    if #rankings == 0 then
+        MP.hSendChatMessage(pid, "^3No players in game yet")
+        return
+    end
+    
+    for i, player in ipairs(rankings) do
+        local status = player.dead and "^1[DEAD]" or "^2[ALIVE]"
+        MP.hSendChatMessage(pid, "^5^l#" .. i .. ": " .. player.name .. " - " .. 
+                            math.floor(player.minRoadDistance) .. "m " .. status)
+    end
+end
 
 return M
