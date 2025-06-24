@@ -81,6 +81,31 @@ local function handleWaterSources()
     end
 end
 
+-- State management
+M.state = {
+  roadDistance = nil,
+  lastSentTime = 0,
+  sendInterval = 250, -- ms between updates to server
+  destinationPos = vec3(634.2406616, 3175.344971, 1227.2677) -- Default destination
+}
+
+M.updateRoadDistance = function()
+    if (M.state.destinationPos == nil) then
+        return
+    end
+
+    local distance = MH.getRoadDistanceRemaining(M.state.destinationPos)
+    M.state.roadDistance = distance
+    return distance
+end
+
+M.sendStateToServer = function()
+    local stateToSend = {
+        roadDistance = M.state.roadDistance
+    }
+    TriggerServerEvent("E_ClientStateUpdate", jsonEncode(stateToSend))
+end
+
 AddEventHandler("E_OnPlayerLoaded", function()
     allWater = getAllWater()
     ocean = findObject("Ocean", "WaterPlane")
@@ -265,14 +290,38 @@ AddEventHandler("E_SetRainAmount", function(amount)
     rainObj.numDrops = amount
 end)
 
-M.hideCoveredWater = hideCoveredWater
+AddEventHandler("E_SetDestinationPos", function(posJson)
+    local pos = jsonDecode(posJson)
+    if pos and pos.x and pos.y and pos.z then
+        M.state.destinationPos = vec3(pos.x, pos.y, pos.z)
+        log("I", "floodBeamMP", "Destination position updated")
+    else
+        log("W", "floodBeamMP", "Invalid destination position received")
+    end
+end)
 
 -- Hooks
+
 function trackVehReset()
     log("W", "E_TrackVehReset", "Tracking vehicle reset")
     TriggerServerEvent("E_RequestResetToRoad", "")
 end
 
 M.trackVehReset = trackVehReset
+
+function onUpdate(dtReal, dtSim, dtRaw)
+    -- Convert dtSim to milliseconds
+    local dtMs = dtSim * 1000
+    
+    M.updateRoadDistance()
+    
+    M.state.lastSentTime = M.state.lastSentTime + dtMs
+    if M.state.lastSentTime >= M.state.sendInterval then
+        M.sendStateToServer()
+        M.state.lastSentTime = M.state.lastSentTime - M.state.sendInterval
+    end
+end
+
+M.onUpdate = onUpdate
 
 return M
