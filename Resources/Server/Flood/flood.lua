@@ -168,6 +168,7 @@ local function autoStartCountdownComplete()
     MP.CancelEventTimer("ET_AutoStartCountdown")
     M.autoStartCountdown.started = false;
     print("Auto start countdown complete")
+
     M.commands["start"]("")
 end
 
@@ -399,7 +400,7 @@ local function checkForNoVehicles()
         local playerVehicles = MP.GetPlayerVehicles(pid);
         local playerState = getPlayerState(pid);
 
-        if playerVehicles or (type(playerVehicles) == "table" and (playerVehicles.count > 0 or next(playerVehicles) ~= nil)) then
+        if playerVehicles and (type(playerVehicles) == "table" and (playerVehicles.count > 0 or next(playerVehicles) ~= nil)) then
             vehiclesSpawned = true
             break
         end
@@ -423,12 +424,12 @@ function updateDestinationForClients(destinationPos)
 end
 
 local function welcomePlayer(pid)
-    MP.hSendChatMessage(pid, "^eWelcome to the flood!")
-    MP.hSendChatMessage(pid, "Use ^2/flood_start^r to start the flood.")
-    MP.hSendChatMessage(pid, "Use ^2/flood_stop^r to stop the flood.")
-    MP.hSendChatMessage(pid, "Use ^2/flood_restart^r to restart the flood.")
-    MP.hSendChatMessage(pid, "Use ^b/flood_reset^r to reset the flood.")
-    MP.hSendChatMessage(pid, "Use ^b/flood_level^r to set the flood level.")
+    MP.hSendChatMessage(pid, "^eWelcome to the flood! Flood will start automatically.")
+    MP.hSendChatMessage(pid, "Use ^2/flood_start^r to start the flood early.")
+    -- MP.hSendChatMessage(pid, "Use ^2/flood_stop^r to stop the flood.")
+    -- MP.hSendChatMessage(pid, "Use ^2/flood_restart^r to restart the flood.")
+    -- MP.hSendChatMessage(pid, "Use ^b/flood_reset^r to reset the flood.")
+    -- MP.hSendChatMessage(pid, "Use ^b/flood_level^r to set the flood level.")
     MP.hSendChatMessage(pid, "Use ^b/flood_speed^r to set the flood speed.")
 end
 
@@ -636,6 +637,11 @@ function E_OnInitialize(pid, waterLevel)
 end
 
 M.commands["start"] = function(pid)
+    if checkForNoVehicles() then
+        MP.hSendChatMessage(-1, "^4^lNo vehicles found, unable to start flood")
+        return
+    end
+
     if pid then
         if not M.isOceanValid then
             MP.hSendChatMessage(pid, "This map doesn't have an ocean, unable to flood")
@@ -644,11 +650,6 @@ M.commands["start"] = function(pid)
 
         if isFloodOrCountdownStarted() then
             MP.hSendChatMessage(pid, "Flood has already started")
-            return
-        end
-        
-        if checkForNoVehicles() then
-            MP.hSendChatMessage(pid, "^4^lNo vehicles found, unable to start flood")
             return
         end
     end

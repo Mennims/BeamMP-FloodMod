@@ -3,6 +3,14 @@ require("multiplayer")
 local flood = require("flood")
 local commands = flood.commands
 local prefix = "/flood_"
+local blacklistedCommands = {
+    ["start"] = false,
+    ["stop"] = true,
+    ["restart"] = true,
+    ["reset"] = true,
+    ["level"] = true,
+    ["speed"] = false,
+}
 
 function chatMessageHandler(pid, name, message)
     if not message then -- console input
@@ -18,6 +26,13 @@ function chatMessageHandler(pid, name, message)
         end
         command = args[1]
         table.remove(args, 1)
+        
+        -- Check if command is blacklisted
+        if blacklistedCommands[command] then
+            MP.hSendChatMessage(pid, "^1This command is not allowed.")
+            return 1
+        end
+        
         if commands[command] then
             commands[command](pid, table.unpack(args))
             return 1

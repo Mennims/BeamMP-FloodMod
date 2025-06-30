@@ -1,6 +1,6 @@
 {
     "floodOptions": {
-        "oceanLevel": 95,
+        "oceanLevel": 85,
         "floodSpeed": 0.058
     },
     "respawnLimit": 10,
