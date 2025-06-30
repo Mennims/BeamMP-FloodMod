@@ -1,6 +1,7 @@
 require("multiplayer")
 local C = require("libs/client")
 local U = require("libs/utils")
+local L = require("libs/leaderboard")
 
 -- Templates
 local playerTemplate = {
@@ -54,7 +55,8 @@ M.autoStartCountdown = {
 M.state = {
     floodStartQueued = false,
     players = {},
-    clientStates = {} -- Store client state updates here
+    clientStates = {}, -- Store client state updates here
+    roundStartTime = 0 -- Track when the current round started
 }
 
 local invalidCount = 0
@@ -113,10 +115,17 @@ local function beginFlood()
     M.state.floodStartQueued = false
     M.options.enabled = true;
     M.countdown.currentCount = 0;
+    M.state.roundStartTime = os.time() -- Track round start time
 
     MP.CreateEventTimer("ET_Update", 25)
 
     C.setVehicleFreeze(false)
+
+    -- Clear previous round leaderboard data
+    L.clearCurrentRound()
+    
+    -- Notify clients that round has started
+    MP.TriggerClientEvent(-1, "E_RoundStarted", tostring(M.state.roundStartTime))
 
     U.setTimeout(function()
         C.setDynamicCollisionEnabled(true)
@@ -358,6 +367,10 @@ local function stopFloodWhenPlayersDead()
 
             M.state.floodStartQueued = true
             U.setTimeout(function()
+                -- Save round results before stopping
+                local roundDuration = os.time() - M.state.roundStartTime
+                L.saveRoundResults(roundDuration, M.options.floodSpeed)
+                
                 M.commands["stop"]("")
                 startAutoStartCountdown()
             end, 10000)
@@ -386,6 +399,11 @@ local function stopFloodWhenPlayersDead()
             end
 
             M.state.floodStartQueued = true
+
+            -- Save round results before stopping
+            local roundDuration = os.time() - M.state.roundStartTime
+            L.saveRoundResults(roundDuration, M.options.floodSpeed)
+
             U.setTimeout(function()
                 M.commands["stop"]("")
                 startAutoStartCountdown()
@@ -400,9 +418,11 @@ local function checkForNoVehicles()
         local playerVehicles = MP.GetPlayerVehicles(pid);
         local playerState = getPlayerState(pid);
 
-        if playerVehicles and (type(playerVehicles) == "table" and (playerVehicles.count > 0 or next(playerVehicles) ~= nil)) then
-            vehiclesSpawned = true
-            break
+        if playerVehicles and type(playerVehicles) == "table" then
+            if (playerVehicles.count and playerVehicles.count > 0) or next(playerVehicles) ~= nil then
+                vehiclesSpawned = true
+                break
+            end
         end
     end
 
@@ -493,11 +513,22 @@ function onPlayerJoin(pid)
         MP.TriggerClientEvent(pid, "E_SetRainVolume", tostring(M.options.rainVolume))
     end
     updatePlayerState(pid)
+    
+    -- Send leaderboard data to new player
+    U.setTimeout(function()
+        L.sendLeaderboardUpdate(pid)
+        
+        -- Send round start time if round is active
+        if M.state.roundStartTime > 0 then
+            MP.TriggerClientEvent(pid, "E_RoundStarted", tostring(M.state.roundStartTime))
+        end
+    end, 1000)
 end
 
 function onPlayerDisconnect(pid)
     deletePlayerState(pid)
     M.state.clientStates[pid] = nil -- Clean up client state
+    L.removeCurrentRoundPlayer(pid) -- Remove from leaderboard
 end
 
 function onVehicleSpawn(pid, vid, data)
@@ -522,6 +553,9 @@ end
 
 function onInit()
     MP.CancelEventTimer("ET_Update")
+    
+    -- Initialize leaderboard system
+    L.initialize()
 
     for pid, player in pairs(MP.GetPlayers()) do
         onPlayerJoin(pid)
@@ -607,6 +641,16 @@ function T_Update()
     ensureVehiclesAreAboveWaterLine()
     stopFloodWhenPlayersDead()
     stopFloodWhenNoVehicles()
+    
+    -- Update leaderboard data
+    for pid, playerState in pairs(M.state.players) do
+        if playerState.status == "inGame" then
+            L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig)
+        end
+    end
+    
+    -- Send leaderboard updates to clients
+    L.sendLeaderboardUpdate()
 end
 
 function E_OnInitialize(pid, waterLevel)
@@ -963,6 +1007,32 @@ M.commands["rankings"] = function(pid)
         local status = player.dead and "^1[DEAD]" or "^2[ALIVE]"
         MP.hSendChatMessage(pid, "^5^l#" .. i .. ": " .. player.name .. " - " .. 
                             math.floor(player.minRoadDistance) .. "m " .. status)
+    end
+end
+
+-- Add command to send leaderboard update to specific player
+M.commands["leaderboard"] = function(pid)
+    L.sendLeaderboardUpdate(pid)
+    MP.hSendChatMessage(pid, "^2Leaderboard updated!")
+end
+
+-- Add command to show leaderboard stats for debugging
+M.commands["leaderboard_debug"] = function(pid)
+    local currentRound = L.getCurrentRoundLeaderboard()
+    local dailyCount = #L.getDailyLeaderboard()
+    local weeklyCount = #L.getWeeklyLeaderboard()
+    
+    MP.hSendChatMessage(pid, "^5Leaderboard Debug:")
+    MP.hSendChatMessage(pid, "^7Current round players: " .. #currentRound)
+    MP.hSendChatMessage(pid, "^7Daily records: " .. dailyCount)
+    MP.hSendChatMessage(pid, "^7Weekly records: " .. weeklyCount)
+    
+    if #currentRound > 0 then
+        MP.hSendChatMessage(pid, "^7Top 3 current round:")
+        for i = 1, math.min(3, #currentRound) do
+            local entry = currentRound[i]
+            MP.hSendChatMessage(pid, "^7  " .. i .. ". " .. entry.name .. " - " .. math.floor(entry.minDistance) .. "m")
+        end
     end
 end
 

@@ -13,6 +13,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			$scope.activeTab = "current";
 			$scope.isAppFocused = false;
 			$scope.compactHeaderHidden = false;
+			$scope.roundStartTime = 0;
 
 			// Focus management
 			$scope.setAppFocus = function(focused) {
@@ -84,211 +85,85 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				}
 			};
 
-			// Static test data for current round
-			function initializeCurrentData() {
-				$scope.leaderboardData = [
-					{
-						rank: 1,
-						name: "SpeedDemon",
-						vehicle: "ETK 800-Series",
-						distance: 1247,
-						power: 245,
-						currentDistance: 1247,
-						totalDistance: 2000,
-						progressPercent: 62.35,
-						isCurrentPlayer: false
-					},
-					{
-						rank: 2,
-						name: "WaterWalker",
-						vehicle: "Gavril Roamer",
-						distance: 1156,
-						power: 189,
-						currentDistance: 1156,
-						totalDistance: 2000,
-						progressPercent: 57.8,
-						isCurrentPlayer: true
-					},
-					{
-						rank: 3,
-						name: "FloodMaster",
-						vehicle: "Hirochi SBR4",
-						distance: 1089,
-						power: 298,
-						currentDistance: 1089,
-						totalDistance: 2000,
-						progressPercent: 54.45,
-						isCurrentPlayer: false
-					},
-					{
-						rank: 4,
-						name: "AquaRacer",
-						vehicle: "Cherrier FCV",
-						distance: 967,
-						power: 156,
-						currentDistance: 967,
-						totalDistance: 2000,
-						progressPercent: 48.35,
-						isCurrentPlayer: false
-					},
-					{
-						rank: 5,
-						name: "TidalWave",
-						vehicle: "Ibishu Covet",
-						distance: 834,
-						power: 123,
-						currentDistance: 834,
-						totalDistance: 2000,
-						progressPercent: 41.7,
-						isCurrentPlayer: false
-					},
-					{
-						rank: 6,
-						name: "DeepDiver",
-						vehicle: "Gavril D-Series",
-						distance: 721,
-						power: 267,
-						currentDistance: 721,
-						totalDistance: 2000,
-						progressPercent: 36.05,
-						isCurrentPlayer: false
+			// Handle leaderboard data from server
+			function handleLeaderboardUpdate(data) {
+				if (!data) return;
+				
+				try {
+					const leaderboardData = JSON.parse(data);
+					
+					// Update current round data
+					if (leaderboardData.currentRound) {
+						$scope.leaderboardData = leaderboardData.currentRound.map((entry, index) => ({
+							rank: entry.position,
+							name: entry.name,
+							vehicle: entry.vehicleName || "Unknown Vehicle",
+							distance: Math.floor(entry.minDistance),
+							power: entry.enginePower,
+							currentDistance: Math.floor(entry.currentDistance),
+							totalDistance: Math.floor(entry.maxDistance),
+							progressPercent: entry.progressPercent,
+							resetsUsed: entry.resetsUsed,
+							isCurrentPlayer: false, // TODO: Determine current player
+							isAlive: entry.isAlive
+						}));
 					}
-				];
+					
+					// Update daily records
+					if (leaderboardData.dailyRecords) {
+						$scope.dailyRecords = leaderboardData.dailyRecords.map((record, index) => ({
+							rank: record.position,
+							name: record.name,
+							distance: Math.floor(record.finalDistance),
+							power: record.enginePower,
+							timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
+							floodSpeed: record.floodSpeed,
+							maxDistance: Math.floor(record.maxDistance),
+							progressPercent: record.progressPercent,
+							resetsUsed: record.resetsUsed
+						}));
+					}
+					
+					// Update weekly records
+					if (leaderboardData.weeklyRecords) {
+						$scope.weeklyRecords = leaderboardData.weeklyRecords.map((record, index) => ({
+							rank: record.position,
+							name: record.name,
+							distance: Math.floor(record.finalDistance),
+							power: record.enginePower,
+							timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
+							floodSpeed: record.floodSpeed,
+							maxDistance: Math.floor(record.maxDistance),
+							progressPercent: record.progressPercent,
+							resetsUsed: record.resetsUsed
+						}));
+					}
+					
+					if (!$scope.$$phase) {
+						$scope.$apply();
+					}
+				} catch (error) {
+					console.error('Error parsing leaderboard data:', error);
+				}
 			}
 
-			// Static test data for daily records
-			function initializeDailyData() {
-				const now = new Date();
-				const maxDistance = 3000; // Max possible distance for progress calculation
-				$scope.dailyRecords = [
-					{
-						rank: 1,
-						name: "RecordBreaker",
-						distance: 2847,
-						power: 278,
-						timestamp: new Date(now - 2 * 60 * 60 * 1000), // 2 hours ago
-						floodSpeed: 0.8,
-						maxDistance: maxDistance,
-						progressPercent: (2847 / maxDistance * 100).toFixed(1)
-					},
-					{
-						rank: 2,
-						name: "SpeedDemon",
-						distance: 2634,
-						power: 245,
-						timestamp: new Date(now - 5 * 60 * 60 * 1000), // 5 hours ago
-						floodSpeed: 0.9,
-						maxDistance: maxDistance,
-						progressPercent: (2634 / maxDistance * 100).toFixed(1)
-					},
-					{
-						rank: 3,
-						name: "FloodMaster",
-						distance: 2456,
-						power: 298,
-						timestamp: new Date(now - 7 * 60 * 60 * 1000), // 7 hours ago
-						floodSpeed: 0.7,
-						maxDistance: maxDistance,
-						progressPercent: (2456 / maxDistance * 100).toFixed(1)
-					},
-					{
-						rank: 4,
-						name: "AquaKing",
-						distance: 2298,
-						power: 212,
-						timestamp: new Date(now - 9 * 60 * 60 * 1000), // 9 hours ago
-						floodSpeed: 1.0,
-						maxDistance: maxDistance,
-						progressPercent: (2298 / maxDistance * 100).toFixed(1)
-					},
-					{
-						rank: 5,
-						name: "WaterWalker",
-						distance: 2156,
-						power: 189,
-						timestamp: new Date(now - 11 * 60 * 60 * 1000), // 11 hours ago
-						floodSpeed: 0.6,
-						maxDistance: maxDistance,
-						progressPercent: (2156 / maxDistance * 100).toFixed(1)
-					}
-				];
-			}
-
-			// Static test data for weekly records
-			function initializeWeeklyData() {
-				const now = new Date();
-				const maxDistance = 3500; // Higher max for weekly records
-				$scope.weeklyRecords = [
-					{
-						rank: 1,
-						name: "LegendaryFlooder",
-						distance: 3247,
-						power: 325,
-						timestamp: new Date(now - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-						floodSpeed: 1.2,
-						maxDistance: maxDistance,
-						progressPercent: (3247 / maxDistance * 100).toFixed(1)
-					},
-					{
-						rank: 2,
-						name: "RecordBreaker",
-						distance: 3089,
-						power: 278,
-						timestamp: new Date(now - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-						floodSpeed: 1.1,
-						maxDistance: maxDistance,
-						progressPercent: (3089 / maxDistance * 100).toFixed(1)
-					},
-					{
-						rank: 3,
-						name: "MasterOfWaves",
-						distance: 2934,
-						power: 289,
-						timestamp: new Date(now - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-						floodSpeed: 0.9,
-						maxDistance: maxDistance,
-						progressPercent: (2934 / maxDistance * 100).toFixed(1)
-					},
-					{
-						rank: 4,
-						name: "StormChaser",
-						distance: 2847,
-						power: 267,
-						timestamp: new Date(now - 2 * 60 * 60 * 1000), // 2 hours ago (today's record)
-						floodSpeed: 0.8,
-						maxDistance: maxDistance,
-						progressPercent: (2847 / maxDistance * 100).toFixed(1)
-					},
-					{
-						rank: 5,
-						name: "DeepSeaExplorer",
-						distance: 2756,
-						power: 312,
-						timestamp: new Date(now - 4 * 24 * 60 * 60 * 1000), // 4 days ago
-						floodSpeed: 1.3,
-						maxDistance: maxDistance,
-						progressPercent: (2756 / maxDistance * 100).toFixed(1)
-					},
-					{
-						rank: 6,
-						name: "TidalMaster",
-						distance: 2689,
-						power: 234,
-						timestamp: new Date(now - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-						floodSpeed: 0.7,
-						maxDistance: maxDistance,
-						progressPercent: (2689 / maxDistance * 100).toFixed(1)
-					}
-				];
+			// Initialize empty data - will be populated by server updates
+			function initializeEmptyData() {
+				$scope.leaderboardData = [];
+				$scope.dailyRecords = [];
+				$scope.weeklyRecords = [];
 			}
 
 			// Initialize round timer
-			let startTime = Date.now();
 			function updateRoundTimer() {
-				const elapsed = Math.floor((Date.now() - startTime) / 1000);
-				const minutes = Math.floor(elapsed / 60);
-				const seconds = elapsed % 60;
-				$scope.roundTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+				if ($scope.roundStartTime > 0) {
+					const elapsed = Math.floor((Date.now() / 1000) - $scope.roundStartTime);
+					const minutes = Math.floor(elapsed / 60);
+					const seconds = elapsed % 60;
+					$scope.roundTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+				} else {
+					$scope.roundTime = "00:00";
+				}
 				
 				if (!$scope.$$phase) {
 					$scope.$apply();
@@ -298,10 +173,8 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			// Start the timer
 			const timerInterval = setInterval(updateRoundTimer, 1000);
 
-			// Initialize all test data
-			initializeCurrentData();
-			initializeDailyData();
-			initializeWeeklyData();
+			// Initialize empty data - server will populate it
+			initializeEmptyData();
 
 			// Mouse and focus event handlers
 			element.on('mouseenter', function() {
@@ -338,30 +211,21 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				element.off('mouseenter mouseleave focusin focusout');
 			});
 
-			// TODO: Future implementation for receiving data from game
-			/*
-			$scope.$on('streamsUpdate', function (event, streams) {
-				// Handle current round data updates here
+			// Set up event handler for receiving leaderboard data from server
+			$scope.handleLeaderboardUpdate = handleLeaderboardUpdate;
+			
+			// Listen for leaderboard updates from the game
+			$scope.$on('LeaderboardUpdate', function(event, data) {
+				handleLeaderboardUpdate(data);
 			});
-
-			function getLeaderboardData() {
-				bngApi.engineLua(luaScript, (result) => {
-					// Process current leaderboard data from game
-				});
-			}
-
-			function getDailyRecords() {
-				bngApi.engineLua(dailyRecordsScript, (result) => {
-					// Process daily records from game
-				});
-			}
-
-			function getWeeklyRecords() {
-				bngApi.engineLua(weeklyRecordsScript, (result) => {
-					// Process weekly records from game
-				});
-			}
-			*/
+			
+			// Listen for round start events
+			$scope.$on('RoundStarted', function(event, startTime) {
+				$scope.roundStartTime = startTime;
+				if (!$scope.$$phase) {
+					$scope.$apply();
+				}
+			});
 		}
 	}
 }]);

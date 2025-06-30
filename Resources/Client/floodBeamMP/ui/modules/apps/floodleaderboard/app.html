@@ -45,17 +45,19 @@
 					<div class="col-vehicle">Vehicle</div>
 					<div class="col-distance">Distance</div>
 					<div class="col-power">Power</div>
+					<div class="col-resets">Resets</div>
 					<div class="col-progress">Progress</div>
 				</div>
 				
 				<div class="table-body">
-					<div class="player-row" ng-repeat="player in leaderboardData track by $index" ng-class="{'current-player': player.isCurrentPlayer}">
+					<div class="player-row" ng-repeat="player in leaderboardData track by $index" ng-class="{'current-player': player.isCurrentPlayer, 'dead-player': !player.isAlive}">
 						<div class="col-rank">
 							<span class="rank-number">{{player.rank}}</span>
 							<span class="rank-medal" ng-if="player.rank <= 3">{{getRankMedal(player.rank)}}</span>
 						</div>
 						<div class="col-player">
 							<span class="player-name">{{player.name}}</span>
+							<span class="player-status" ng-if="!player.isAlive">💀</span>
 						</div>
 						<div class="col-vehicle">
 							<span class="vehicle-name">{{player.vehicle}}</span>
@@ -65,6 +67,9 @@
 						</div>
 						<div class="col-power">
 							<span class="power-value">{{player.power}}kW</span>
+						</div>
+						<div class="col-resets">
+							<span class="resets-value">{{player.resetsUsed}}</span>
 						</div>
 						<div class="col-progress">
 							<div class="progress-bar">

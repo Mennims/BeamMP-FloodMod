@@ -86,7 +86,8 @@ M.state = {
   roadDistance = nil,
   lastSentTime = 0,
   sendInterval = 250, -- ms between updates to server
-  destinationPos = vec3(634.2406616, 3175.344971, 1227.2677) -- Default destination
+  destinationPos = vec3(634.2406616, 3175.344971, 1227.2677), -- Default destination
+  roundStartTime = 0 -- Track when current round started
 }
 
 M.updateRoadDistance = function()
@@ -298,6 +299,21 @@ AddEventHandler("E_SetDestinationPos", function(posJson)
     else
         log("W", "floodBeamMP", "Invalid destination position received")
     end
+end)
+
+AddEventHandler("E_LeaderboardUpdate", function(leaderboardData)
+    log("I", "floodBeamMP", "Received leaderboard update")
+    
+    -- Send to UI apps that need leaderboard data
+    guihooks.trigger('LeaderboardUpdate', leaderboardData)
+end)
+
+AddEventHandler("E_RoundStarted", function(startTimeStr)
+    M.state.roundStartTime = tonumber(startTimeStr) or os.time()
+    log("I", "floodBeamMP", "Round started at: " .. M.state.roundStartTime)
+    
+    -- Send round start time to UI
+    guihooks.trigger('RoundStarted', M.state.roundStartTime)
 end)
 
 -- Hooks
