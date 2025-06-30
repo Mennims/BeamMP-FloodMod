@@ -322,6 +322,7 @@ function onUpdate(dtReal, dtSim, dtRaw)
     end
 end
 
+M.hideCoveredWater = hideCoveredWater
 M.onUpdate = onUpdate
 
 return M
