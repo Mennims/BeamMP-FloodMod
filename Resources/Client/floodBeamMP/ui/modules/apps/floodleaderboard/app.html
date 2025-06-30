@@ -1,0 +1,181 @@
+<div style="height: 100%; width: 100%; overflow: hidden; position: relative; color: white; background: rgba(0, 0, 0, 0.8);" layout="column" class="leaderboard-app" ng-class="{'compact-mode': !isAppFocused, 'focused-mode': isAppFocused}" ng-mouseenter="setAppFocus(true)" ng-mouseleave="setAppFocus(false)" tabindex="0" ng-focus="setAppFocus(true)" ng-blur="setAppFocus(false)">
+	<link type="text/css" rel="stylesheet" href="/ui/modules/apps/floodleaderboard/app.css" />
+
+	<div class="leaderboard-header" ng-show="isAppFocused || !compactHeaderHidden">
+		<h2>🏆 Flood Leaderboard</h2>
+		<div class="header-subtitle" ng-show="isAppFocused">{{getSubtitleText()}}</div>
+	</div>
+
+	<!-- Compact mode display -->
+	<div class="compact-display" ng-show="!isAppFocused">
+		<div class="compact-top-players">
+			<div class="compact-player" ng-repeat="player in getTopThree() track by $index">
+				<span class="compact-rank">{{getRankMedal(player.rank)}}</span>
+				<span class="compact-name">{{player.name}}</span>
+				<span class="compact-distance">{{player.distance}}m</span>
+			</div>
+		</div>
+		<div class="compact-footer">
+			<span class="compact-timer">⏱ {{roundTime}}</span>
+			<span class="compact-players">{{leaderboardData.length}} players</span>
+		</div>
+	</div>
+
+	<!-- Full mode display -->
+	<div class="leaderboard-content" ng-show="isAppFocused">
+		<!-- Tab navigation -->
+		<div class="tab-navigation">
+			<div class="tab-button" ng-class="{'active': activeTab === 'current'}" ng-click="setActiveTab('current')">
+				Current Round
+			</div>
+			<div class="tab-button" ng-class="{'active': activeTab === 'daily'}" ng-click="setActiveTab('daily')">
+				Daily Records
+			</div>
+			<div class="tab-button" ng-class="{'active': activeTab === 'weekly'}" ng-click="setActiveTab('weekly')">
+				Weekly Records
+			</div>
+		</div>
+
+		<!-- Current Round Tab -->
+		<div class="tab-content current-tab" ng-show="activeTab === 'current'">
+			<div class="leaderboard-table">
+				<div class="table-header current-header">
+					<div class="col-rank">#</div>
+					<div class="col-player">Player</div>
+					<div class="col-vehicle">Vehicle</div>
+					<div class="col-distance">Distance</div>
+					<div class="col-power">Power</div>
+					<div class="col-progress">Progress</div>
+				</div>
+				
+				<div class="table-body">
+					<div class="player-row" ng-repeat="player in leaderboardData track by $index" ng-class="{'current-player': player.isCurrentPlayer}">
+						<div class="col-rank">
+							<span class="rank-number">{{player.rank}}</span>
+							<span class="rank-medal" ng-if="player.rank <= 3">{{getRankMedal(player.rank)}}</span>
+						</div>
+						<div class="col-player">
+							<span class="player-name">{{player.name}}</span>
+						</div>
+						<div class="col-vehicle">
+							<span class="vehicle-name">{{player.vehicle}}</span>
+						</div>
+						<div class="col-distance">
+							<span class="distance-value">{{player.distance}}m</span>
+						</div>
+						<div class="col-power">
+							<span class="power-value">{{player.power}}kW</span>
+						</div>
+						<div class="col-progress">
+							<div class="progress-bar">
+								<div class="progress-fill" ng-style="{'width': player.progressPercent + '%'}"></div>
+							</div>
+							<span class="progress-text">{{player.currentDistance}}/{{player.totalDistance}}m</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Daily Records Tab -->
+		<div class="tab-content daily-tab" ng-show="activeTab === 'daily'">
+			<div class="leaderboard-table">
+				<div class="table-header daily-header">
+					<div class="col-rank">#</div>
+					<div class="col-player">Player</div>
+					<div class="col-distance">Distance</div>
+					<div class="col-power">Power</div>
+					<div class="col-datetime">Date/Time</div>
+					<div class="col-flood-speed">Flood Speed</div>
+					<div class="col-progress">Progress</div>
+				</div>
+				
+				<div class="table-body">
+					<div class="player-row" ng-repeat="record in dailyRecords track by $index">
+						<div class="col-rank">
+							<span class="rank-number">{{record.rank}}</span>
+							<span class="rank-medal" ng-if="record.rank <= 3">{{getRankMedal(record.rank)}}</span>
+						</div>
+						<div class="col-player">
+							<span class="player-name">{{record.name}}</span>
+						</div>
+						<div class="col-distance">
+							<span class="distance-value">{{record.distance}}m</span>
+						</div>
+						<div class="col-power">
+							<span class="power-value">{{record.power}}kW</span>
+						</div>
+						<div class="col-datetime">
+							<span class="datetime-value">{{formatDateTime(record.timestamp)}}</span>
+						</div>
+						<div class="col-flood-speed">
+							<span class="flood-speed-value">{{record.floodSpeed}}m/s</span>
+						</div>
+						<div class="col-progress">
+							<div class="progress-bar">
+								<div class="progress-fill" ng-style="{'width': record.progressPercent + '%'}"></div>
+							</div>
+							<span class="progress-text">{{record.distance}}/{{record.maxDistance}}m</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Weekly Records Tab -->
+		<div class="tab-content weekly-tab" ng-show="activeTab === 'weekly'">
+			<div class="leaderboard-table">
+				<div class="table-header weekly-header">
+					<div class="col-rank">#</div>
+					<div class="col-player">Player</div>
+					<div class="col-distance">Distance</div>
+					<div class="col-power">Power</div>
+					<div class="col-datetime">Date/Time</div>
+					<div class="col-flood-speed">Flood Speed</div>
+					<div class="col-progress">Progress</div>
+				</div>
+				
+				<div class="table-body">
+					<div class="player-row" ng-repeat="record in weeklyRecords track by $index">
+						<div class="col-rank">
+							<span class="rank-number">{{record.rank}}</span>
+							<span class="rank-medal" ng-if="record.rank <= 3">{{getRankMedal(record.rank)}}</span>
+						</div>
+						<div class="col-player">
+							<span class="player-name">{{record.name}}</span>
+						</div>
+						<div class="col-distance">
+							<span class="distance-value">{{record.distance}}m</span>
+						</div>
+						<div class="col-power">
+							<span class="power-value">{{record.power}}kW</span>
+						</div>
+						<div class="col-datetime">
+							<span class="datetime-value">{{formatDateTime(record.timestamp)}}</span>
+						</div>
+						<div class="col-flood-speed">
+							<span class="flood-speed-value">{{record.floodSpeed}}m/s</span>
+						</div>
+						<div class="col-progress">
+							<div class="progress-bar">
+								<div class="progress-fill" ng-style="{'width': record.progressPercent + '%'}"></div>
+							</div>
+							<span class="progress-text">{{record.distance}}/{{record.maxDistance}}m</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="leaderboard-footer" ng-show="isAppFocused">
+		<div class="footer-stats">
+			<span class="stat-item">Players: {{getPlayerCount()}}</span>
+			<span class="stat-separator">•</span>
+			<span class="stat-item">Round Time: {{roundTime}}</span>
+			<span class="stat-separator" ng-show="activeTab !== 'current'">•</span>
+			<span class="stat-item" ng-show="activeTab === 'daily'">Today's Records: {{dailyRecords.length}}</span>
+			<span class="stat-item" ng-show="activeTab === 'weekly'">This Week: {{weeklyRecords.length}}</span>
+		</div>
+	</div>
+</div>

@@ -1,0 +1,17 @@
+{
+"domElement": "<floodleaderboard></floodleaderboard>",
+"directive": "floodleaderboard",
+"name": "Flood Leaderboard",
+"author": "Mennims",
+"version": "1.0",
+"types": [ "ui.apps.categories.info" ],
+"css": {
+    "bottom": "680px",
+    "height": "450px",
+    "width": "500px",
+    "right": "1px",
+    "max-height": "700px",
+	  "min-width": "420px",
+    "min-height": "380px"
+  }
+}
