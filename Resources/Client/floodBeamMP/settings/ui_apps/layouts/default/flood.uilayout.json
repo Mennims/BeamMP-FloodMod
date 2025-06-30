@@ -81,16 +81,6 @@
         }
       },
       {
-        "appName":"multiplayerplayerlist",
-        "placement":{
-          "height":"527px",
-          "min-width":"240px",
-          "right":"0px",
-          "top":"90px",
-          "width":"auto"
-        }
-      },
-      {
         "appName":"multiplayersession",
         "placement":{
           "bottom":"",
@@ -128,6 +118,18 @@
           "top":0,
           "width":"230px"
         }  
+      },
+      {
+        "appName":"floodleaderboard",
+        "placement":{
+          "bottom":"",
+          "height":"300px",
+          "left":"",
+          "position":"absolute",
+          "right":"0px",
+          "top":"40px",
+          "width":"500px"
+        }
       }
     ],
     "title":"Flood",

@@ -11,7 +11,8 @@ local playerTemplate = {
     dead = false, -- Player is dead
     respawnedCount = 0, -- Times the player has respawned
     totalVehicles = 0, -- Total vehicles the player has spawned, excluding unicycles
-    vehiclePower = 0 -- Vehicle engine power in kW
+    vehiclePower = 0, -- Vehicle engine power in kW
+    announcedAsWinner = false -- Whether this player has been announced as a winner this round
 }
 
 local vehicleTemplate = {
@@ -309,7 +310,7 @@ local function getPlayerRankings()
                 pid = entry.playerId,
                 name = entry.name,
                 distanceTraveled = entry.bestDistanceTraveled or 0,
-                dead = not entry.isAlive
+                dead = not entry.isAlive  -- entry.isAlive = true means alive, so dead = false when alive
             })
         end
     end
@@ -456,6 +457,7 @@ local function prepareFlood()
 
     for pid, playerState in pairs(M.state.players) do
         setPlayerDead(pid, false)
+        playerState.announcedAsWinner = false -- Reset winner announcement for new round
         if playerState.totalVehicles > 0 then
             setPlayerStatus(pid, "inGame")
         else
@@ -643,8 +645,6 @@ function T_Update()
 
     updatePlayersStatesVehicles()
     ensureVehiclesAreAboveWaterLine()
-    stopFloodWhenPlayersDead()
-    stopFloodWhenNoVehicles()
     
     -- Update leaderboard data
     for pid, playerState in pairs(M.state.players) do
@@ -652,6 +652,40 @@ function T_Update()
             L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
         end
     end
+    
+    -- Check for winners (players who reached the destination)
+    local winners = {}
+    local currentRound = L.getCurrentRoundLeaderboard()
+    local trackLength = M.mapConfig.totalDistance or 13098
+    
+    for _, entry in ipairs(currentRound) do
+        if entry.bestDistanceTraveled >= trackLength and entry.isAlive then
+            local playerState = getPlayerState(entry.playerId)
+            if playerState and playerState.status == "inGame" then
+                table.insert(winners, {
+                    pid = entry.playerId,
+                    name = entry.name,
+                    distanceTraveled = entry.bestDistanceTraveled
+                })
+            end
+        end
+    end
+    
+    -- Announce new winners (only announce once per player)
+    if #winners > 0 then
+        for _, winner in ipairs(winners) do
+            local playerState = getPlayerState(winner.pid)
+            -- Check if we haven't announced this player as winner yet
+            if not playerState.announcedAsWinner then
+                MP.hSendChatMessage(-1, "^6^o^l" .. winner.name .. " ^r^6^l^ohas reached the destination and won!")
+                playerState.announcedAsWinner = true
+            end
+        end
+    end
+    
+    -- Continue with normal flood logic - only stop when players are dead or no vehicles
+    stopFloodWhenPlayersDead()
+    stopFloodWhenNoVehicles()
     
     -- Send leaderboard updates to clients
     L.sendLeaderboardUpdate()

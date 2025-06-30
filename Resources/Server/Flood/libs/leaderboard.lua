@@ -195,7 +195,7 @@ function M.removeCurrentRoundPlayer(playerId)
     M.state.currentRound[playerId] = nil
 end
 
--- Get current round leaderboard sorted by progress (best distance)
+-- Get current round leaderboard sorted by distance traveled
 function M.getCurrentRoundLeaderboard()
     local leaderboard = {}
     
@@ -203,15 +203,14 @@ function M.getCurrentRoundLeaderboard()
         table.insert(leaderboard, entry)
     end
     
-    -- Sort by best distance traveled (descending = better progress)
+    -- Sort by best distance traveled (higher = better)
+    -- Dead players remain ranked by their best distance achieved before death
     table.sort(leaderboard, function(a, b)
-        -- Alive players always rank higher than dead players
-        if a.isAlive ~= b.isAlive then
-            return a.isAlive
-        end
+        local distanceA = a.bestDistanceTraveled or 0
+        local distanceB = b.bestDistanceTraveled or 0
         
-        -- Then sort by best distance traveled (farther = better)
-        return (a.bestDistanceTraveled or 0) > (b.bestDistanceTraveled or 0)
+        -- Pure distance ranking - whoever went furthest is highest
+        return distanceA > distanceB
     end)
     
     -- Update positions
@@ -269,21 +268,35 @@ function M.getDailyLeaderboard()
     local bestRecords = {}
     local playerBest = {}
     
-    -- Find best record for each player today (best = furthest distance traveled)
+    -- Find best record for each player today (best = highest composite score)
     for _, record in ipairs(M.state.dailyRecords) do
         local currentBest = playerBest[record.playerId]
-        if not currentBest or (record.finalDistanceTraveled or 0) > (currentBest.finalDistanceTraveled or 0) then
+        if not currentBest then
             playerBest[record.playerId] = record
+        else
+            local currentScore = M.calculateScore(currentBest)
+            local newScore = M.calculateScore(record)
+            if newScore > currentScore then
+                playerBest[record.playerId] = record
+            end
         end
     end
     
-    -- Convert to array and sort
+    -- Convert to array and sort by composite score
     for _, record in pairs(playerBest) do
         table.insert(bestRecords, record)
     end
     
     table.sort(bestRecords, function(a, b)
-        return (a.finalDistanceTraveled or 0) > (b.finalDistanceTraveled or 0)
+        local scoreA = M.calculateScore(a)
+        local scoreB = M.calculateScore(b)
+        
+        -- If scores are very close, use distance as tiebreaker
+        if math.abs(scoreA - scoreB) < 0.01 then
+            return (a.finalDistanceTraveled or 0) > (b.finalDistanceTraveled or 0)
+        end
+        
+        return scoreA > scoreB
     end)
     
     -- Update positions
@@ -299,21 +312,35 @@ function M.getWeeklyLeaderboard()
     local bestRecords = {}
     local playerBest = {}
     
-    -- Find best record for each player this week (best = furthest distance traveled)
+    -- Find best record for each player this week (best = highest composite score)
     for _, record in ipairs(M.state.weeklyRecords) do
         local currentBest = playerBest[record.playerId]
-        if not currentBest or (record.finalDistanceTraveled or 0) > (currentBest.finalDistanceTraveled or 0) then
+        if not currentBest then
             playerBest[record.playerId] = record
+        else
+            local currentScore = M.calculateScore(currentBest)
+            local newScore = M.calculateScore(record)
+            if newScore > currentScore then
+                playerBest[record.playerId] = record
+            end
         end
     end
     
-    -- Convert to array and sort
+    -- Convert to array and sort by composite score
     for _, record in pairs(playerBest) do
         table.insert(bestRecords, record)
     end
     
     table.sort(bestRecords, function(a, b)
-        return (a.finalDistanceTraveled or 0) > (b.finalDistanceTraveled or 0)
+        local scoreA = M.calculateScore(a)
+        local scoreB = M.calculateScore(b)
+        
+        -- If scores are very close, use distance as tiebreaker
+        if math.abs(scoreA - scoreB) < 0.01 then
+            return (a.finalDistanceTraveled or 0) > (b.finalDistanceTraveled or 0)
+        end
+        
+        return scoreA > scoreB
     end)
     
     -- Update positions
@@ -349,6 +376,39 @@ function M.sendLeaderboardUpdate(targetPlayerId)
     end
     
     M.state.lastUpdateTime = currentTime
+end
+
+-- Calculate composite score for leaderboard ranking
+-- Takes into account distance, survival time, and flood speed
+function M.calculateScore(entry, roundFloodSpeed)
+    local distance = entry.bestDistanceTraveled or entry.finalDistanceTraveled or 0
+    local timeAlive = entry.timeAlive or 0
+    local trackLength = entry.trackLength or 13098
+    local floodSpeed = entry.floodSpeed or roundFloodSpeed or 0.05
+    
+    -- Normalize values to 0-1 scale for fair weighting
+    local distanceScore = math.min(1.0, distance / trackLength) -- 0-1 based on track completion
+    local timeScore = math.min(1.0, timeAlive / 300) -- 0-1 based on 5 minutes survival time
+    local floodSpeedMultiplier = math.max(0.5, math.min(2.0, floodSpeed / 0.05)) -- 0.5-2.0x based on flood speed
+    
+    -- Weighted scoring formula
+    -- Distance: 60% weight (primary factor)
+    -- Time: 25% weight (survival skill)
+    -- Flood speed: 15% weight (difficulty multiplier)
+    local baseScore = (distanceScore * 0.60) + (timeScore * 0.25)
+    local finalScore = baseScore * (1.0 + (floodSpeedMultiplier - 1.0) * 0.15)
+    
+    -- Bonus for completing the track
+    if distance >= trackLength * 0.95 then -- 95% completion bonus
+        finalScore = finalScore * 1.1
+    end
+    
+    -- Penalty for early death (if died within first 30 seconds)
+    if not entry.isAlive and timeAlive < 30 then
+        finalScore = finalScore * 0.8
+    end
+    
+    return finalScore
 end
 
 -- Initialize the leaderboard system
