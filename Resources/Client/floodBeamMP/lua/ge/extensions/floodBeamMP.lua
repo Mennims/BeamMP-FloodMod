@@ -87,7 +87,8 @@ M.state = {
   lastSentTime = 0,
   sendInterval = 250, -- ms between updates to server
   destinationPos = vec3(634.2406616, 3175.344971, 1227.2677), -- Default destination
-  roundStartTime = 0 -- Track when current round started
+  roundStartTime = 0, -- Track when current round started
+  vehiclePower = nil -- Track vehicle engine power
 }
 
 M.updateRoadDistance = function()
@@ -100,9 +101,33 @@ M.updateRoadDistance = function()
     return distance
 end
 
+M.getVehiclePower = function()
+    local vehicle = be:getPlayerVehicle(0)
+    if not vehicle then return nil end
+    
+    -- Execute vehicle Lua that calls back to game engine Lua to set the power
+    vehicle:queueLuaCommand([[
+        if powertrain and powertrain.getDevice then
+            local engine = powertrain.getDevice("mainEngine")
+            if engine and engine.torqueData and engine.torqueData.maxPower then
+                local power = math.floor(engine.torqueData.maxPower + 0.5)
+                obj:queueGameEngineLua("extensions.floodBeamMP.setVehiclePower(" .. power .. ")")
+            end
+        end
+    ]])
+end
+
+-- Function to be called from vehicle Lua via queueGameEngineLua
+M.setVehiclePower = function(power)
+    if power and power > 0 then
+        M.state.vehiclePower = power
+    end
+end
+
 M.sendStateToServer = function()
     local stateToSend = {
-        roadDistance = M.state.roadDistance
+        roadDistance = M.state.roadDistance,
+        vehiclePower = M.state.vehiclePower
     }
     TriggerServerEvent("E_ClientStateUpdate", jsonEncode(stateToSend))
 end
@@ -302,9 +327,6 @@ AddEventHandler("E_SetDestinationPos", function(posJson)
 end)
 
 AddEventHandler("E_LeaderboardUpdate", function(leaderboardData)
-    log("I", "floodBeamMP", "Received leaderboard update")
-    
-    -- Send to UI apps that need leaderboard data
     guihooks.trigger('LeaderboardUpdate', leaderboardData)
 end)
 
@@ -330,6 +352,11 @@ function onUpdate(dtReal, dtSim, dtRaw)
     local dtMs = dtSim * 1000
     
     M.updateRoadDistance()
+    
+    -- Check for vehicle power periodically (less frequently than road distance)
+    if M.state.lastSentTime % 1000 < dtMs then -- Every ~1 second
+        M.getVehiclePower()
+    end
     
     M.state.lastSentTime = M.state.lastSentTime + dtMs
     if M.state.lastSentTime >= M.state.sendInterval then

@@ -18,9 +18,6 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			// Focus management
 			$scope.setAppFocus = function(focused) {
 				$scope.isAppFocused = focused;
-				if (!$scope.$$phase) {
-					$scope.$apply();
-				}
 			};
 
 			// Tab management
@@ -51,15 +48,6 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				}
 			};
 
-			$scope.getSubtitleText = function() {
-				switch($scope.activeTab) {
-					case 'current': return 'Current Round Progress';
-					case 'daily': return 'Today\'s Best Records';
-					case 'weekly': return 'This Week\'s Champions';
-					default: return 'Leaderboard';
-				}
-			};
-
 			$scope.formatDateTime = function(timestamp) {
 				const date = new Date(timestamp);
 				const now = new Date();
@@ -85,6 +73,22 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				}
 			};
 
+			$scope.formatTime = function(seconds) {
+				if (!seconds || seconds <= 0) return "0:00";
+				
+				const totalSeconds = Math.floor(seconds);
+				const minutes = Math.floor(totalSeconds / 60);
+				const remainingSeconds = totalSeconds % 60;
+				
+				if (minutes >= 60) {
+					const hours = Math.floor(minutes / 60);
+					const remainingMinutes = minutes % 60;
+					return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+				} else {
+					return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+				}
+			};
+
 			// Handle leaderboard data from server
 			function handleLeaderboardUpdate(data) {
 				if (!data) return;
@@ -98,12 +102,13 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 							rank: entry.position,
 							name: entry.name,
 							vehicle: entry.vehicleName || "Unknown Vehicle",
-							distance: Math.floor(entry.minDistance),
+							distance: Math.floor(entry.bestDistanceTraveled || 0), // Best distance traveled
 							power: entry.enginePower,
-							currentDistance: Math.floor(entry.currentDistance),
-							totalDistance: Math.floor(entry.maxDistance),
+							currentDistance: Math.floor(entry.bestDistanceTraveled || 0), // Best distance traveled
+							totalDistance: Math.floor(entry.trackLength),
 							progressPercent: entry.progressPercent,
 							resetsUsed: entry.resetsUsed,
+							timeAlive: entry.timeAlive || 0,
 							isCurrentPlayer: false, // TODO: Determine current player
 							isAlive: entry.isAlive
 						}));
@@ -114,13 +119,15 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						$scope.dailyRecords = leaderboardData.dailyRecords.map((record, index) => ({
 							rank: record.position,
 							name: record.name,
-							distance: Math.floor(record.finalDistance),
+							distance: Math.floor(record.finalDistanceTraveled || 0), // Distance traveled
 							power: record.enginePower,
+							timeAlive: record.timeAlive || 0,
 							timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
 							floodSpeed: record.floodSpeed,
-							maxDistance: Math.floor(record.maxDistance),
+							maxDistance: Math.floor(record.trackLength),
 							progressPercent: record.progressPercent,
-							resetsUsed: record.resetsUsed
+							resetsUsed: record.resetsUsed,
+							vehicle: record.vehicleName || "Unknown Vehicle"
 						}));
 					}
 					
@@ -129,19 +136,18 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						$scope.weeklyRecords = leaderboardData.weeklyRecords.map((record, index) => ({
 							rank: record.position,
 							name: record.name,
-							distance: Math.floor(record.finalDistance),
+							distance: Math.floor(record.finalDistanceTraveled || 0), // Distance traveled
 							power: record.enginePower,
+							timeAlive: record.timeAlive || 0,
 							timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
 							floodSpeed: record.floodSpeed,
-							maxDistance: Math.floor(record.maxDistance),
+							maxDistance: Math.floor(record.trackLength),
 							progressPercent: record.progressPercent,
-							resetsUsed: record.resetsUsed
+							resetsUsed: record.resetsUsed,
+							vehicle: record.vehicleName || "Unknown Vehicle"
 						}));
 					}
 					
-					if (!$scope.$$phase) {
-						$scope.$apply();
-					}
 				} catch (error) {
 					console.error('Error parsing leaderboard data:', error);
 				}
@@ -152,7 +158,228 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				$scope.leaderboardData = [];
 				$scope.dailyRecords = [];
 				$scope.weeklyRecords = [];
+				
+				// ========================================
+				// DUMMY DATA FOR TESTING - REMOVE LATER
+				// ========================================
+				// loadDummyData();
 			}
+			
+			// DUMMY DATA FUNCTION - COMMENT OUT OR REMOVE WHEN DONE TESTING
+			function loadDummyData() {
+				// Current round dummy data
+				$scope.leaderboardData = [
+					{
+						rank: 1,
+						name: "SpeedRacer",
+						vehicle: "ETK K-Series",
+						power: 250,
+						progressPercent: 85.2,
+						resetsUsed: 0,
+						timeAlive: 143,
+						currentDistance: 11163,
+						totalDistance: 13098,
+						isCurrentPlayer: false,
+						isAlive: true
+					},
+					{
+						rank: 2,
+						name: "FloodSurvivor",
+						vehicle: "Gavril Grand Marshal",
+						power: 180,
+						progressPercent: 78.9,
+						resetsUsed: 1,
+						timeAlive: 156,
+						currentDistance: 10334,
+						totalDistance: 13098,
+						isCurrentPlayer: true,
+						isAlive: true
+					},
+					{
+						rank: 3,
+						name: "WaterRunner",
+						vehicle: "Hirochi Sunburst",
+						power: 145,
+						progressPercent: 71.3,
+						resetsUsed: 0,
+						timeAlive: 134,
+						currentDistance: 9341,
+						totalDistance: 13098,
+						isCurrentPlayer: false,
+						isAlive: true
+					},
+					{
+						rank: 4,
+						name: "DeepDriver",
+						vehicle: "Ibishu Covet",
+						power: 95,
+						progressPercent: 64.7,
+						resetsUsed: 2,
+						timeAlive: 89,
+						currentDistance: 8475,
+						totalDistance: 13098,
+						isCurrentPlayer: false,
+						isAlive: false
+					},
+					{
+						rank: 5,
+						name: "AquaVelocity",
+						vehicle: "Bruckell Moonhawk",
+						power: 210,
+						progressPercent: 58.1,
+						resetsUsed: 3,
+						timeAlive: 67,
+						currentDistance: 7609,
+						totalDistance: 13098,
+						isCurrentPlayer: false,
+						isAlive: false
+					},
+					{
+						rank: 6,
+						name: "TidalWave",
+						vehicle: "Soliad Wendover",
+						power: 165,
+						progressPercent: 45.3,
+						resetsUsed: 1,
+						timeAlive: 45,
+						currentDistance: 5935,
+						totalDistance: 13098,
+						isCurrentPlayer: false,
+						isAlive: false
+					}
+				];
+				
+				// Daily records dummy data
+				$scope.dailyRecords = [
+					{
+						rank: 1,
+						name: "ChampionDriverLongName",
+						distance: 12456,
+						power: 280,
+						timeAlive: 289,
+						timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+						floodSpeed: 0.05,
+						maxDistance: 13098,
+						progressPercent: 95.1,
+						resetsUsed: 0,
+						vehicle: "ETK K-Series"
+					},
+					{
+						rank: 2,
+						name: "ProRacer",
+						distance: 11234,
+						power: 245,
+						timeAlive: 234,
+						timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
+						floodSpeed: 0.06,
+						maxDistance: 13098,
+						progressPercent: 85.8,
+						resetsUsed: 1,
+						vehicle: "Gavril Grand Marshal"
+					},
+					{
+						rank: 3,
+						name: "FloodMaster",
+						distance: 10987,
+						power: 190,
+						timeAlive: 198,
+						timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
+						floodSpeed: 0.055,
+						maxDistance: 13098,
+						progressPercent: 83.9,
+						resetsUsed: 0,
+						vehicle: "Hirochi Sunburst"
+					},
+					{
+						rank: 4,
+						name: "WaveRider",
+						distance: 9876,
+						power: 165,
+						timeAlive: 167,
+						timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000), // 8 hours ago
+						floodSpeed: 0.07,
+						maxDistance: 13098,
+						progressPercent: 75.4,
+						resetsUsed: 2,
+						vehicle: "Ibishu Covet"
+					}
+				];
+				
+				// Weekly records dummy data
+				$scope.weeklyRecords = [
+					{
+						rank: 1,
+						name: "WeeklyKing",
+						distance: 12891,
+						power: 320,
+						timeAlive: 345,
+						timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+						floodSpeed: 0.045,
+						maxDistance: 13098,
+						progressPercent: 98.4,
+						resetsUsed: 0,
+						vehicle: "Gavril Barstow"
+					},
+					{
+						rank: 2,
+						name: "LegendaryDriver",
+						distance: 12567,
+						power: 290,
+						timeAlive: 312,
+						timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+						floodSpeed: 0.05,
+						maxDistance: 13098,
+						progressPercent: 95.9,
+						resetsUsed: 1,
+						vehicle: "ETK K-Series"
+					},
+					{
+						rank: 3,
+						name: "FloodChampion",
+						distance: 12123,
+						power: 255,
+						timeAlive: 287,
+						timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+						floodSpeed: 0.055,
+						maxDistance: 13098,
+						progressPercent: 92.6,
+						resetsUsed: 0,
+						vehicle: "Bruckell Moonhawk"
+					},
+					{
+						rank: 4,
+						name: "AquaHero",
+						distance: 11678,
+						power: 220,
+						timeAlive: 245,
+						timestamp: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), // 6 days ago
+						floodSpeed: 0.06,
+						maxDistance: 13098,
+						progressPercent: 89.2,
+						resetsUsed: 1,
+						vehicle: "Soliad Wendover"
+					},
+					{
+						rank: 5,
+						name: "DepthExplorer",
+						distance: 11234,
+						power: 185,
+						timeAlive: 198,
+						timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 1 week ago
+						floodSpeed: 0.065,
+						maxDistance: 13098,
+						progressPercent: 85.8,
+						resetsUsed: 2,
+						vehicle: "Hirochi SBR4"
+					}
+				];
+				
+				// Set round start time for testing
+				$scope.roundStartTime = Math.floor(Date.now() / 1000) - 180; // Started 3 minutes ago
+			}
+			// ======================================== 
+			// END DUMMY DATA - REMOVE ABOVE WHEN DONE
+			// ========================================
 
 			// Initialize round timer
 			function updateRoundTimer() {
@@ -164,10 +391,6 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				} else {
 					$scope.roundTime = "00:00";
 				}
-				
-				if (!$scope.$$phase) {
-					$scope.$apply();
-				}
 			}
 
 			// Start the timer
@@ -176,39 +399,11 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			// Initialize empty data - server will populate it
 			initializeEmptyData();
 
-			// Mouse and focus event handlers
-			element.on('mouseenter', function() {
-				$scope.setAppFocus(true);
-			});
-
-			element.on('mouseleave', function() {
-				// Add a small delay before hiding to prevent flickering
-				setTimeout(function() {
-					if (!element.is(':focus-within')) {
-						$scope.setAppFocus(false);
-					}
-				}, 100);
-			});
-
-			element.on('focusin', function() {
-				$scope.setAppFocus(true);
-			});
-
-			element.on('focusout', function() {
-				// Check if focus moved to a child element
-				setTimeout(function() {
-					if (!element.is(':focus-within')) {
-						$scope.setAppFocus(false);
-					}
-				}, 100);
-			});
-
 			// Cleanup function
 			$scope.$on('$destroy', function() {
 				if (timerInterval) {
 					clearInterval(timerInterval);
 				}
-				element.off('mouseenter mouseleave focusin focusout');
 			});
 
 			// Set up event handler for receiving leaderboard data from server
@@ -222,9 +417,6 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			// Listen for round start events
 			$scope.$on('RoundStarted', function(event, startTime) {
 				$scope.roundStartTime = startTime;
-				if (!$scope.$$phase) {
-					$scope.$apply();
-				}
 			});
 		}
 	}

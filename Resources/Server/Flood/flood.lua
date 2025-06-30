@@ -11,7 +11,7 @@ local playerTemplate = {
     dead = false, -- Player is dead
     respawnedCount = 0, -- Times the player has respawned
     totalVehicles = 0, -- Total vehicles the player has spawned, excluding unicycles
-    minRoadDistance = 999999 -- Minimum road distance (closest to destination)
+    vehiclePower = 0 -- Vehicle engine power in kW
 }
 
 local vehicleTemplate = {
@@ -296,30 +296,23 @@ local function ensureVehiclesAreAboveWaterLine()
     end
 end
 
-local function resetPlayersMinRoadDistance()
-    for pid, playerState in pairs(M.state.players) do
-        playerState.minRoadDistance = 999999
-    end
-end
+
 
 local function getPlayerRankings()
+    -- Get rankings from leaderboard system
+    local currentRound = L.getCurrentRoundLeaderboard()
     local rankings = {}
     
-    for pid, playerState in pairs(M.state.players) do
-        if playerState.status == "inGame" then
+    for i, entry in ipairs(currentRound) do
+        if M.state.players[entry.playerId] and M.state.players[entry.playerId].status == "inGame" then
             table.insert(rankings, {
-                pid = pid,
-                name = playerState.name,
-                minRoadDistance = playerState.minRoadDistance,
-                dead = playerState.dead
+                pid = entry.playerId,
+                name = entry.name,
+                distanceTraveled = entry.bestDistanceTraveled or 0,
+                dead = not entry.isAlive
             })
         end
     end
-    
-    -- Sort by min road distance (ascending)
-    table.sort(rankings, function(a, b) 
-        return a.minRoadDistance < b.minRoadDistance
-    end)
     
     return rankings
 end
@@ -361,7 +354,7 @@ local function stopFloodWhenPlayersDead()
 
                 local status = player.dead and "^1DEAD" or "^2ALIVE"
                 MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
-                                    math.floor(player.minRoadDistance) .. "m " .. status)
+                                    math.floor(player.distanceTraveled) .. "m traveled " .. status)
                 if i >= 5 then break end -- Only show top 5
             end
 
@@ -394,7 +387,7 @@ local function stopFloodWhenPlayersDead()
 
                 local status = player.dead and "^1DEAD" or "^2ALIVE"
                 MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
-                                    math.floor(player.minRoadDistance) .. "m " .. status)
+                                    math.floor(player.distanceTraveled) .. "m traveled " .. status)
                 if i >= 5 then break end -- Only show top 5
             end
 
@@ -458,7 +451,6 @@ local function prepareFlood()
 
     C.setDynamicCollisionEnabled(false)
     resetPlayersRespawnedCount()
-    resetPlayersMinRoadDistance() -- Reset min road distance for new round
     resetAutoStartCountdown()
     resetCountdown()
 
@@ -491,7 +483,8 @@ function onPlayerJoin(pid)
 
     U.setTimeout(function()
         welcomePlayer(pid)
-    end, 2000)
+        L.sendLeaderboardUpdate(pid)
+    end, 4000)
 
     local success = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
     if success then
@@ -516,13 +509,23 @@ function onPlayerJoin(pid)
     
     -- Send leaderboard data to new player
     U.setTimeout(function()
+        -- Initialize player in leaderboard if round is active
+        if M.options.enabled and M.state.roundStartTime > 0 then
+            updatePlayerState(pid)
+            local playerState = getPlayerState(pid)
+            if playerState.totalVehicles > 0 then
+                setPlayerStatus(pid, "inGame")
+                L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
+            end
+        end
+        
         L.sendLeaderboardUpdate(pid)
         
         -- Send round start time if round is active
         if M.state.roundStartTime > 0 then
             MP.TriggerClientEvent(pid, "E_RoundStarted", tostring(M.state.roundStartTime))
         end
-    end, 1000)
+    end, 2000)
 end
 
 function onPlayerDisconnect(pid)
@@ -532,6 +535,7 @@ function onPlayerDisconnect(pid)
 end
 
 function onVehicleSpawn(pid, vid, data)
+    L.sendLeaderboardUpdate(pid)
     if MP.GetPlayerCount() >= 1 and not M.autoStartCountdown.started and not M.countdown.started and not M.options.enabled and not M.state.floodStartQueued then
         startAutoStartCountdown()
     end
@@ -645,7 +649,7 @@ function T_Update()
     -- Update leaderboard data
     for pid, playerState in pairs(M.state.players) do
         if playerState.status == "inGame" then
-            L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig)
+            L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
         end
     end
     
@@ -964,15 +968,13 @@ function E_ClientStateUpdate(pid, stateJson)
     
     M.state.clientStates[pid] = clientState
     
-    -- Update minimum road distance if player is in game and not dead
-    if clientState.roadDistance and M.state.players[pid] and 
-       M.state.players[pid].status == "inGame" and not M.state.players[pid].dead then
-        
-        local currentDistance = tonumber(clientState.roadDistance)
-        if currentDistance and currentDistance < M.state.players[pid].minRoadDistance then
-            M.state.players[pid].minRoadDistance = currentDistance
-        end
+    -- Update player state with vehicle power if available
+    local playerState = getPlayerState(pid)
+    if playerState and clientState.vehiclePower then
+        playerState.vehiclePower = clientState.vehiclePower
     end
+    
+    -- Distance tracking is now handled by the leaderboard system
 end
 
 
@@ -996,7 +998,7 @@ MP.RegisterEvent("E_ClientStateUpdate", "E_ClientStateUpdate")
 -- Add a command to show current rankings
 M.commands["rankings"] = function(pid)
     local rankings = getPlayerRankings()
-    MP.hSendChatMessage(pid, "^5^l===== CLOSEST TO DESTINATION =====")
+    MP.hSendChatMessage(pid, "^5^l===== FURTHEST DISTANCE TRAVELED =====")
     
     if #rankings == 0 then
         MP.hSendChatMessage(pid, "^3No players in game yet")
@@ -1006,7 +1008,7 @@ M.commands["rankings"] = function(pid)
     for i, player in ipairs(rankings) do
         local status = player.dead and "^1[DEAD]" or "^2[ALIVE]"
         MP.hSendChatMessage(pid, "^5^l#" .. i .. ": " .. player.name .. " - " .. 
-                            math.floor(player.minRoadDistance) .. "m " .. status)
+                            math.floor(player.distanceTraveled) .. "m traveled " .. status)
     end
 end
 
@@ -1031,7 +1033,7 @@ M.commands["leaderboard_debug"] = function(pid)
         MP.hSendChatMessage(pid, "^7Top 3 current round:")
         for i = 1, math.min(3, #currentRound) do
             local entry = currentRound[i]
-            MP.hSendChatMessage(pid, "^7  " .. i .. ". " .. entry.name .. " - " .. math.floor(entry.minDistance) .. "m")
+            MP.hSendChatMessage(pid, "^7  " .. i .. ". " .. entry.name .. " - " .. math.floor(entry.distanceTraveled or 0) .. "m traveled")
         end
     end
 end

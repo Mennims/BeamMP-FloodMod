@@ -18,14 +18,18 @@ local currentRoundEntryTemplate = {
     playerId = "",
     name = "",
     vehicleName = "", -- TODO: Need to implement vehicle name retrieval
-    enginePower = 0, -- TODO: Need to implement engine power retrieval (kW)
-    currentDistance = 0, -- Current road distance to destination
-    minDistance = 999999, -- Best (minimum) distance achieved
-    maxDistance = 0, -- Total distance from start to destination
+    enginePower = 0, -- Vehicle engine power in kW (received from client)
+    currentDistanceToDestination = 999999, -- Current road distance remaining to destination
+    trackLength = 0, -- Total track length from map config
+    distanceTraveled = 0, -- Distance traveled from start (trackLength - currentDistanceToDestination)
+    bestDistanceTraveled = 0, -- Best (furthest) distance traveled achieved this round
     progressPercent = 0,
     resetsUsed = 0,
     position = 1, -- Current leaderboard position
     isAlive = true,
+    timeAlive = 0, -- Time alive in seconds
+    spawnTime = 0, -- When the player spawned/started this round
+    deathTime = 0, -- When the player died (0 if still alive)
     lastUpdate = 0 -- Timestamp of last update
 }
 
@@ -34,12 +38,13 @@ local historicalEntryTemplate = {
     name = "",
     vehicleName = "",
     enginePower = 0,
-    finalDistance = 0, -- Final distance achieved (minDistance when round ended)
-    maxDistance = 0,
+    finalDistanceTraveled = 0, -- Final distance traveled when round ended
+    trackLength = 0, -- Total track length
     progressPercent = 0,
     resetsUsed = 0,
     floodSpeed = 0,
     roundDuration = 0, -- Duration of the round in seconds
+    timeAlive = 0, -- Time the player was alive in seconds
     timestamp = 0, -- When the round ended
     position = 1 -- Final position in that round
 }
@@ -118,74 +123,71 @@ local function cleanOldRecords()
     M.state.weeklyRecords = newWeeklyRecords
 end
 
--- Calculate max distance from start positions to destination
-local function calculateMaxDistance(mapConfig)
-    if not mapConfig.startPositions or not mapConfig.destination then
-        return 3000 -- Default fallback distance
-    end
-    
-    local maxDist = 0
-    local destPos = mapConfig.destination.pos
-    
-    for _, startPos in ipairs(mapConfig.startPositions) do
-        local start = startPos.pos
-        -- Calculate euclidean distance (road distance would be better but we don't have that data here)
-        local dx = destPos.x - start.x
-        local dy = destPos.y - start.y
-        local dz = destPos.z - start.z
-        local distance = math.sqrt(dx*dx + dy*dy + dz*dz)
-        
-        if distance > maxDist then
-            maxDist = distance
-        end
-    end
-    
-    return maxDist
+-- Get track length from map config
+local function getTrackLength(mapConfig)
+    return mapConfig.totalDistance or 13098 -- Default fallback track length
 end
 
 -- Add or update a player in the current round leaderboard
-function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfig)
+function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfig, roundStartTime)
     if not playerId or not playerState then return end
     
+    local currentTime = os.time()
     local entry = M.state.currentRound[playerId]
+    local wasAlive = entry and entry.isAlive
+    
     if not entry then
         entry = U.deepcopy(currentRoundEntryTemplate)
         entry.playerId = playerId
-        entry.maxDistance = calculateMaxDistance(mapConfig)
+        entry.trackLength = getTrackLength(mapConfig)
+        entry.spawnTime = roundStartTime or currentTime
         M.state.currentRound[playerId] = entry
     end
     
     -- Update basic info
     entry.name = playerState.name or ""
-    entry.isAlive = not playerState.dead
+    local isAlive = not playerState.dead
+    entry.isAlive = isAlive
     entry.resetsUsed = playerState.respawnedCount or 0
-    entry.lastUpdate = os.time()
+    entry.lastUpdate = currentTime
+    
+    -- Handle death time tracking
+    if wasAlive and not isAlive and entry.deathTime == 0 then
+        entry.deathTime = currentTime
+    end
+    
+    -- Calculate time alive
+    if isAlive then
+        entry.timeAlive = currentTime - entry.spawnTime
+    else
+        -- Player is dead, use death time if available, otherwise current time
+        local endTime = entry.deathTime > 0 and entry.deathTime or currentTime
+        entry.timeAlive = endTime - entry.spawnTime
+    end
     
     -- Update distance info
     if clientState and clientState.roadDistance then
-        entry.currentDistance = tonumber(clientState.roadDistance) or entry.currentDistance
+        entry.currentDistanceToDestination = tonumber(clientState.roadDistance) or entry.currentDistanceToDestination
+    end
+    
+    -- Player state backup is no longer needed since we handle distance tracking here
+    
+    -- Calculate distance traveled and progress percentage
+    if entry.trackLength > 0 then
+        -- Distance traveled = track length - distance remaining to destination
+        entry.distanceTraveled = math.max(0, entry.trackLength - entry.currentDistanceToDestination)
         
-        -- Update minimum distance (best progress)
-        if entry.currentDistance < entry.minDistance then
-            entry.minDistance = entry.currentDistance
+        -- Update best distance traveled (furthest progress this round)
+        if entry.distanceTraveled > entry.bestDistanceTraveled then
+            entry.bestDistanceTraveled = entry.distanceTraveled
         end
+        
+        entry.progressPercent = math.max(0, math.min(100, (entry.bestDistanceTraveled / entry.trackLength) * 100))
     end
     
-    -- Update minimum distance from player state as backup
-    if playerState.minRoadDistance and playerState.minRoadDistance < entry.minDistance then
-        entry.minDistance = playerState.minRoadDistance
-    end
-    
-    -- Calculate progress percentage (how close to destination)
-    if entry.maxDistance > 0 then
-        -- Progress is based on how much closer to destination (lower distance = better progress)
-        local progressDistance = math.max(0, entry.maxDistance - entry.minDistance)
-        entry.progressPercent = math.max(0, math.min(100, (progressDistance / entry.maxDistance) * 100))
-    end
-    
-    -- TODO: Update vehicle info (these need to be implemented)
-    -- entry.vehicleName = getVehicleName(playerState.vehicle.config)
-    -- entry.enginePower = getEngineKW(playerState.vehicle.config)
+    -- Update vehicle info
+    entry.vehicleName = M.getVehicleName(playerState.vehicle.config)
+    entry.enginePower = playerState.vehiclePower or 0
 end
 
 -- Remove a player from current round leaderboard
@@ -201,15 +203,15 @@ function M.getCurrentRoundLeaderboard()
         table.insert(leaderboard, entry)
     end
     
-    -- Sort by minimum distance (ascending = better progress)
+    -- Sort by best distance traveled (descending = better progress)
     table.sort(leaderboard, function(a, b)
         -- Alive players always rank higher than dead players
         if a.isAlive ~= b.isAlive then
             return a.isAlive
         end
         
-        -- Then sort by best distance achieved
-        return a.minDistance < b.minDistance
+        -- Then sort by best distance traveled (farther = better)
+        return (a.bestDistanceTraveled or 0) > (b.bestDistanceTraveled or 0)
     end)
     
     -- Update positions
@@ -233,12 +235,13 @@ function M.saveRoundResults(roundDuration, floodSpeed)
         historicalEntry.name = entry.name
         historicalEntry.vehicleName = entry.vehicleName
         historicalEntry.enginePower = entry.enginePower
-        historicalEntry.finalDistance = entry.minDistance
-        historicalEntry.maxDistance = entry.maxDistance
+        historicalEntry.finalDistanceTraveled = entry.bestDistanceTraveled -- Best distance traveled
+        historicalEntry.trackLength = entry.trackLength
         historicalEntry.progressPercent = entry.progressPercent
         historicalEntry.resetsUsed = entry.resetsUsed
         historicalEntry.position = entry.position
         historicalEntry.roundDuration = roundDuration or 0
+        historicalEntry.timeAlive = entry.timeAlive or 0
         historicalEntry.floodSpeed = floodSpeed or 0
         historicalEntry.timestamp = currentTime
         
@@ -266,10 +269,10 @@ function M.getDailyLeaderboard()
     local bestRecords = {}
     local playerBest = {}
     
-    -- Find best record for each player today
+    -- Find best record for each player today (best = furthest distance traveled)
     for _, record in ipairs(M.state.dailyRecords) do
         local currentBest = playerBest[record.playerId]
-        if not currentBest or record.finalDistance < currentBest.finalDistance then
+        if not currentBest or (record.finalDistanceTraveled or 0) > (currentBest.finalDistanceTraveled or 0) then
             playerBest[record.playerId] = record
         end
     end
@@ -280,7 +283,7 @@ function M.getDailyLeaderboard()
     end
     
     table.sort(bestRecords, function(a, b)
-        return a.finalDistance < b.finalDistance
+        return (a.finalDistanceTraveled or 0) > (b.finalDistanceTraveled or 0)
     end)
     
     -- Update positions
@@ -296,10 +299,10 @@ function M.getWeeklyLeaderboard()
     local bestRecords = {}
     local playerBest = {}
     
-    -- Find best record for each player this week
+    -- Find best record for each player this week (best = furthest distance traveled)
     for _, record in ipairs(M.state.weeklyRecords) do
         local currentBest = playerBest[record.playerId]
-        if not currentBest or record.finalDistance < currentBest.finalDistance then
+        if not currentBest or (record.finalDistanceTraveled or 0) > (currentBest.finalDistanceTraveled or 0) then
             playerBest[record.playerId] = record
         end
     end
@@ -310,7 +313,7 @@ function M.getWeeklyLeaderboard()
     end
     
     table.sort(bestRecords, function(a, b)
-        return a.finalDistance < b.finalDistance
+        return (a.finalDistanceTraveled or 0) > (b.finalDistanceTraveled or 0)
     end)
     
     -- Update positions
@@ -356,9 +359,7 @@ end
 
 -- TODO: Implement these functions when vehicle data access is available
 function M.getVehicleName(vehicleConfig)
-    -- Stub: Extract vehicle name from config
-    -- This would need to parse the vehicleConfig.jbm or similar field
-    return "Unknown Vehicle"
+    return vehicleConfig.jbm
 end
 
 function M.getEngineKW(vehicleConfig)

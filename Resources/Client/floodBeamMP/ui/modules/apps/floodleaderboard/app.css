@@ -33,7 +33,7 @@
 
 /* Compact display */
 .compact-display {
-	padding: 8px;
+	padding: 6px;
 	display: flex;
 	flex-direction: column;
 	height: 100%;
@@ -48,12 +48,18 @@
 
 .compact-player {
 	display: flex;
-	align-items: center;
-	gap: 8px;
+	flex-direction: column;
+	gap: 2px;
 	padding: 4px 8px;
 	background: rgba(255, 255, 255, 0.05);
 	border-radius: 4px;
 	font-size: 0.9em;
+}
+
+.compact-player-info {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 
 .compact-rank {
@@ -98,23 +104,38 @@
 	font-weight: 500;
 }
 
+.compact-progress-bar {
+	width: 100%;
+	height: 4px;
+	background: rgba(255, 255, 255, 0.2);
+	border-radius: 2px;
+	overflow: hidden;
+}
+
+.compact-progress-fill {
+	height: 100%;
+	background: linear-gradient(90deg, rgba(0, 123, 191, 0.9), rgba(51, 153, 255, 0.8));
+	border-radius: 2px;
+	transition: width 0.3s ease;
+}
+
 /* Header */
 .leaderboard-header {
-	padding: 12px 16px;
-	background: linear-gradient(90deg, rgba(255, 102, 0, 0.8), rgba(255, 153, 0, 0.6));
+	padding: 8px 12px;
+	background: linear-gradient(90deg, rgba(0, 123, 191, 0.8), rgba(51, 153, 255, 0.6));
 	border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 	text-align: center;
 }
 
 .leaderboard-header h2 {
-	font-size: 1.4em;
+	font-size: 1.2em;
 	font-weight: bold;
 	margin: 0;
 	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .header-subtitle {
-	font-size: 0.9em;
+	font-size: 0.8em;
 	opacity: 0.9;
 	margin-top: 2px;
 }
@@ -131,9 +152,9 @@
 
 .tab-button {
 	flex: 1;
-	padding: 8px 12px;
+	padding: 6px 8px;
 	text-align: center;
-	font-size: 0.9em;
+	font-size: 0.8em;
 	font-weight: 500;
 	border-radius: 4px;
 	cursor: pointer;
@@ -148,7 +169,7 @@
 }
 
 .tab-button.active {
-	background: linear-gradient(90deg, rgba(255, 102, 0, 0.8), rgba(255, 153, 0, 0.6));
+	background: linear-gradient(90deg, rgba(0, 123, 191, 0.8), rgba(51, 153, 255, 0.6));
 	color: white;
 	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
@@ -171,85 +192,134 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
+	min-height: 0; /* Allow flex children to shrink */
+	width: 100%;
 }
 
-/* Table header and row layout using CSS Grid */
+/* Table container with unified scrolling */
+.table-container {
+	flex: 1;
+	overflow: auto; /* Single scrolling container for both header and body */
+	scrollbar-width: thin;
+	scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+	min-height: 0;
+}
+
+/* Table header */
 .table-header {
 	display: grid;
-	background: rgba(255, 255, 255, 0.1);
+	background: linear-gradient(90deg, rgba(0, 123, 191, 0.8), rgba(51, 153, 255, 0.6));
 	border-radius: 4px;
-	padding: 8px 12px;
-	margin-bottom: 4px;
+	padding: 6px 8px;
+	margin-bottom: 3px;
 	font-weight: bold;
-	font-size: 0.85em;
+	font-size: 0.75em;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
-	gap: 8px;
+	gap: 6px;
 	align-items: center;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	width: 100%;
+	min-width: max-content; /* Ensure header spans the full content width */
+	/* Add solid background to hide content scrolling underneath */
+	background-color: rgba(20, 20, 20, 0.95);
+	background-image: linear-gradient(90deg, rgba(0, 123, 191, 0.8), rgba(51, 153, 255, 0.6));
+	backdrop-filter: blur(2px);
 }
 
 .player-row {
 	display: grid;
-	padding: 8px 12px;
-	margin-bottom: 2px;
+	padding: 6px 8px;
+	margin-bottom: 1px;
 	background: rgba(255, 255, 255, 0.05);
 	border-radius: 4px;
 	transition: all 0.2s ease;
 	border-left: 3px solid transparent;
-	gap: 8px;
+	gap: 6px;
 	align-items: center;
+	font-size: 0.85em;
+	width: 100%;
+	min-width: max-content; /* Match header width behavior */
 }
 
-/* Current tab grid layout: 7 columns (added resets) */
+/* Current tab grid layout: 6 columns (removed vehicle) */
 .current-tab .table-header,
 .current-tab .player-row {
-	grid-template-columns: 50px 1fr 140px 80px 70px 60px 120px;
+	grid-template-columns: 35px 90px 140px 50px 45px 50px;
 }
 
-/* Daily/Weekly tab grid layout: 7 columns */
+/* Daily/Weekly tab grid layout: 8 columns (player, progress, time, flood speed, resets, power, vehicle) */
 .daily-tab .table-header,
 .daily-tab .player-row,
 .weekly-tab .table-header,
 .weekly-tab .player-row {
-	grid-template-columns: 40px 1fr 80px 60px 100px 80px 100px;
+	grid-template-columns: 35px 90px 120px 50px 70px 45px 45px 100px;
 }
 
-/* Table body */
-.table-body {
-	flex: 1;
-	overflow-y: auto;
-	scrollbar-width: thin;
-	scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+/* Text overflow handling with ellipsis */
+.player-name,
+.vehicle-name,
+.power-value,
+.resets-value,
+.time-value,
+.flood-speed-value,
+.progress-text {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
 }
 
-.table-body::-webkit-scrollbar {
+/* Ensure columns have proper width constraints */
+.col-player,
+.col-vehicle {
+	min-width: 0; /* Allow flex shrinking */
+}
+
+.col-progress {
+	min-width: 0;
+}
+
+.progress-text {
+	display: block;
+	margin-top: 2px;
+}
+
+.table-container::-webkit-scrollbar {
 	width: 6px;
+	height: 6px;
 }
 
-.table-body::-webkit-scrollbar-track {
+.table-container::-webkit-scrollbar-track {
 	background: transparent;
 }
 
-.table-body::-webkit-scrollbar-thumb {
+.table-container::-webkit-scrollbar-thumb {
 	background: rgba(255, 255, 255, 0.3);
 	border-radius: 3px;
 }
 
-.table-body::-webkit-scrollbar-thumb:hover {
+.table-container::-webkit-scrollbar-thumb:hover {
 	background: rgba(255, 255, 255, 0.5);
+}
+
+.table-container::-webkit-scrollbar-corner {
+	background: transparent;
 }
 
 /* Player row hover and current player states */
 
 .player-row:hover {
 	background: rgba(255, 255, 255, 0.1);
-	transform: translateX(2px);
 }
 
 .player-row.current-player {
-	background: rgba(255, 102, 0, 0.2);
-	border-left-color: #ff6600;
-	box-shadow: 0 0 8px rgba(255, 102, 0, 0.3);
+	background: rgba(0, 123, 191, 0.2);
+	border-left-color: #007bbf;
+	box-shadow: 0 0 8px rgba(0, 123, 191, 0.3);
 }
 
 .player-row.dead-player {
@@ -271,18 +341,16 @@
 }
 
 .col-player {
-	/* Player names use the flexible column (1fr) */
+	/* Player names use fixed width columns */
+	min-width: 0; /* Allow text to truncate */
+	overflow: hidden;
 }
 
 .col-vehicle {
 	font-size: 0.9em;
 }
 
-.col-distance {
-	text-align: center;
-	font-weight: bold;
-	color: #66ff66;
-}
+/* Distance column removed - now using progress column */
 
 .col-power {
 	text-align: center;
@@ -294,6 +362,13 @@
 	text-align: center;
 	font-size: 0.9em;
 	color: #ff9966;
+	font-weight: 500;
+}
+
+.col-time {
+	text-align: center;
+	font-size: 0.85em;
+	color: #99ccff;
 	font-weight: 500;
 }
 
@@ -329,6 +404,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	max-width: 100%;
+	min-width: 0; /* Allow flexbox to shrink below content size */
 }
 
 .vehicle-name {
@@ -346,39 +422,48 @@
 	max-width: 100%;
 }
 
+.time-value {
+	white-space: nowrap;
+	font-family: 'Courier New', monospace; /* Monospace for consistent alignment */
+	font-weight: 500;
+}
+
 /* Progress bar */
 .progress-bar {
 	width: 100%;
-	height: 8px;
+	height: 6px;
 	background: rgba(255, 255, 255, 0.2);
-	border-radius: 4px;
+	border-radius: 3px;
 	overflow: hidden;
-	margin-bottom: 2px;
+	margin-bottom: 1px;
 }
 
 .progress-fill {
 	height: 100%;
-	background: linear-gradient(90deg, #ff6600, #ff9900);
-	border-radius: 4px;
+	background: linear-gradient(90deg, rgba(0, 123, 191, 0.9), rgba(51, 153, 255, 0.8));
+	border-radius: 3px;
 	transition: width 0.3s ease;
 }
 
 .progress-text {
-	font-size: 0.8em;
+	font-size: 0.7em;
 	color: #cccccc;
 	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 /* Footer */
 .leaderboard-footer {
-	padding: 8px 16px;
-	background: rgba(0, 0, 0, 0.3);
-	border-top: 1px solid rgba(255, 255, 255, 0.1);
+	padding: 6px 12px;
+	background: rgba(0, 123, 191, 0.2);
+	border-top: 1px solid rgba(51, 153, 255, 0.3);
 	text-align: center;
 }
 
 .footer-stats {
-	font-size: 0.85em;
+	font-size: 0.75em;
 	color: #cccccc;
 }
 
@@ -391,33 +476,102 @@
 	opacity: 0.6;
 }
 
-/* Responsive design */
-@media (max-width: 500px) {
-	.leaderboard-header h2 {
-		font-size: 1.2em;
-	}
-	
-	.tab-button {
-		font-size: 0.8em;
+/* Responsive design for typical widths */
+@media (max-width: 600px) {
+	.leaderboard-header {
 		padding: 6px 8px;
 	}
 	
-	/* Current tab responsive: Hide vehicle column */
+	.leaderboard-header h2 {
+		font-size: 1.1em;
+	}
+	
+	.header-subtitle {
+		font-size: 0.75em;
+	}
+	
+	.tab-navigation {
+		margin: 6px;
+		padding: 3px;
+	}
+	
+	.tab-button {
+		font-size: 0.75em;
+		padding: 5px 6px;
+	}
+	
+	.tab-content {
+		padding: 0 6px;
+	}
+	
+	.table-header {
+		padding: 5px 6px;
+		font-size: 0.7em;
+		gap: 4px;
+	}
+	
+	.player-row {
+		padding: 5px 6px;
+		gap: 4px;
+		font-size: 0.8em;
+	}
+	
+	/* Current tab responsive for smaller screens */
 	.current-tab .table-header,
 	.current-tab .player-row {
-		grid-template-columns: 45px 1fr 70px 60px 50px 110px;
+		grid-template-columns: 30px 100px 120px 45px 40px 45px;
 	}
 	
-	.current-tab .col-vehicle {
-		display: none;
-	}
-	
-	/* Daily/Weekly responsive: Hide power column */
+	/* Daily/Weekly responsive for smaller screens - hide some columns */
 	.daily-tab .table-header,
 	.daily-tab .player-row,
 	.weekly-tab .table-header,
 	.weekly-tab .player-row {
-		grid-template-columns: 35px 1fr 70px 90px 70px 90px;
+		grid-template-columns: 25px 90px 100px 45px 60px 40px 70px;
+	}
+	
+	.daily-tab .col-resets,
+	.weekly-tab .col-resets {
+		display: none;
+	}
+	
+	.progress-text {
+		font-size: 0.65em;
+	}
+}
+
+/* Optimized for 480px width */
+@media (max-width: 480px) {
+	.leaderboard-header h2 {
+		font-size: 1em;
+	}
+	
+	.tab-button {
+		font-size: 0.7em;
+		padding: 4px 5px;
+	}
+	
+	.table-header {
+		font-size: 0.65em;
+		padding: 4px 5px;
+	}
+	
+	.player-row {
+		font-size: 0.75em;
+		padding: 4px 5px;
+	}
+	
+	/* Tighter spacing for 480px */
+	.current-tab .table-header,
+	.current-tab .player-row {
+		grid-template-columns: 25px 85px 100px 40px 35px 40px;
+	}
+	
+	.daily-tab .table-header,
+	.daily-tab .player-row,
+	.weekly-tab .table-header,
+	.weekly-tab .player-row {
+		grid-template-columns: 20px 75px 85px 40px 55px 60px;
 	}
 	
 	.daily-tab .col-power,
@@ -425,22 +579,29 @@
 		display: none;
 	}
 	
-	.col-datetime {
-		font-size: 0.75em;
+	.progress-text {
+		font-size: 0.6em;
 	}
 	
-	.progress-text {
+	.compact-player {
+		padding: 3px 6px;
+		font-size: 0.8em;
+	}
+	
+	.compact-footer {
 		font-size: 0.7em;
+		padding: 3px 6px;
 	}
 }
 
+/* For very small heights */
 @media (max-height: 400px) {
 	.leaderboard-header {
-		padding: 8px 16px;
+		padding: 4px 8px;
 	}
 	
 	.leaderboard-header h2 {
-		font-size: 1.2em;
+		font-size: 1em;
 	}
 	
 	.header-subtitle {
@@ -448,30 +609,41 @@
 	}
 	
 	.tab-navigation {
-		margin: 4px 8px;
+		margin: 3px;
 		padding: 2px;
 	}
 	
 	.tab-button {
-		padding: 6px 8px;
-		font-size: 0.8em;
+		padding: 3px 5px;
+		font-size: 0.7em;
 	}
 	
 	.table-header,
 	.player-row {
-		padding: 6px 8px;
-		gap: 6px;
+		padding: 3px 6px;
+		font-size: 0.75em;
+		gap: 4px;
 	}
 	
 	.leaderboard-footer {
-		padding: 6px 16px;
+		padding: 3px 6px;
+	}
+	
+	.footer-stats {
+		font-size: 0.7em;
 	}
 	
 	.compact-player {
-		padding: 3px 6px;
+		padding: 2px 4px;
+		font-size: 0.75em;
 	}
 	
 	.compact-footer {
-		padding: 3px 6px;
+		padding: 2px 4px;
+		font-size: 0.65em;
+	}
+	
+	.progress-text {
+		font-size: 0.55em;
 	}
 }
