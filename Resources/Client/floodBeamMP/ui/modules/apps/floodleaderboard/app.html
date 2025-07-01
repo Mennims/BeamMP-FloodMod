@@ -1,34 +1,14 @@
-<div style="height: 100%; width: 100%; overflow: hidden; position: relative; color: white; background: rgba(0, 0, 0, 0.8);" layout="column" class="leaderboard-app" ng-class="{'compact-mode': !isAppFocused, 'focused-mode': isAppFocused}" ng-mouseenter="setAppFocus(true)" ng-mouseleave="setAppFocus(false)" tabindex="0" ng-focus="setAppFocus(true)" ng-blur="setAppFocus(false)">
+<div style="height: 100%; width: 100%; overflow: hidden; position: relative; color: white; background: rgba(0, 0, 0, 0.8);" layout="column" class="leaderboard-app" ng-mouseenter="setAppFocus(true)" ng-mouseleave="setAppFocus(false)">
 	<link type="text/css" rel="stylesheet" href="/ui/modules/apps/floodleaderboard/app.css" />
 
-	<div class="leaderboard-header" ng-show="isAppFocused || !compactHeaderHidden">
-		<h2>🏆 Leaderboard</h2>
+	<div class="leaderboard-header">
+		<h4>🏆 Leaderboard</h4>
 	</div>
 
-	<!-- Compact mode display -->
-	<div class="compact-display" ng-show="!isAppFocused">
-		<div class="compact-top-players">
-			<div class="compact-player" ng-repeat="player in getTopThree() track by $index">
-				<div class="compact-player-info">
-				<span class="compact-rank">{{getRankMedal(player.rank)}}</span>
-				<span class="compact-name">{{player.name}}</span>
-				<span class="compact-distance">{{player.distance}}m</span>
-				</div>
-				<div class="compact-progress-bar">
-					<div class="compact-progress-fill" ng-style="{'width': player.progressPercent + '%'}"></div>
-				</div>
-			</div>
-		</div>
-		<div class="compact-footer">
-			<span class="compact-timer">⏱ {{roundTime}}</span>
-			<span class="compact-players">{{leaderboardData.length}} players</span>
-		</div>
-	</div>
-
-	<!-- Full mode display -->
-	<div class="leaderboard-content" ng-show="isAppFocused">
-		<!-- Tab navigation -->
-		<div class="tab-navigation">
+	<!-- Main leaderboard content -->
+	<div class="leaderboard-content">
+		<!-- Tab navigation - only shown when focused -->
+		<div class="tab-navigation" ng-show="isAppFocused">
 			<div class="tab-button" ng-class="{'active': activeTab === 'current'}" ng-click="setActiveTab('current')">
 				Current Round
 			</div>

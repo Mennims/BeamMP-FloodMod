@@ -18,106 +18,7 @@
 	transition: all 0.3s ease;
 }
 
-/* Compact mode styling */
-.leaderboard-app.compact-mode {
-	background: linear-gradient(145deg, rgba(0, 0, 0, 0.6), rgba(20, 20, 20, 0.6));
-	border: 1px solid rgba(255, 255, 255, 0.05);
-	backdrop-filter: blur(5px);
-}
 
-.leaderboard-app.focused-mode {
-	background: linear-gradient(145deg, rgba(0, 0, 0, 0.9), rgba(20, 20, 20, 0.9));
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	backdrop-filter: blur(10px);
-}
-
-/* Compact display */
-.compact-display {
-	padding: 6px;
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-}
-
-.compact-top-players {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-.compact-player {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	padding: 4px 8px;
-	background: rgba(255, 255, 255, 0.05);
-	border-radius: 4px;
-	font-size: 0.9em;
-}
-
-.compact-player-info {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.compact-rank {
-	font-size: 1.1em;
-	width: 20px;
-	text-align: center;
-}
-
-.compact-name {
-	flex: 1;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	font-weight: 500;
-}
-
-.compact-distance {
-	color: #66ff66;
-	font-weight: bold;
-	font-size: 0.85em;
-}
-
-.compact-footer {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 4px 8px;
-	background: rgba(0, 0, 0, 0.3);
-	border-radius: 4px;
-	font-size: 0.8em;
-	color: #cccccc;
-	margin-top: 4px;
-}
-
-.compact-timer {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-}
-
-.compact-players {
-	font-weight: 500;
-}
-
-.compact-progress-bar {
-	width: 100%;
-	height: 4px;
-	background: rgba(255, 255, 255, 0.2);
-	border-radius: 2px;
-	overflow: hidden;
-}
-
-.compact-progress-fill {
-	height: 100%;
-	background: linear-gradient(90deg, rgba(0, 123, 191, 0.9), rgba(51, 153, 255, 0.8));
-	border-radius: 2px;
-	transition: width 0.3s ease;
-}
 
 /* Header */
 .leaderboard-header {
@@ -125,13 +26,17 @@
 	background: linear-gradient(90deg, rgba(0, 123, 191, 0.8), rgba(51, 153, 255, 0.6));
 	border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 	text-align: center;
+	margin-bottom: 10px;
 }
 
-.leaderboard-header h2 {
-	font-size: 1.2em;
-	font-weight: bold;
+.leaderboard-header h4 {
 	margin: 0;
 	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Add gap when not in focus */
+.flood-leaderboard-app:not(.focused) .leaderboard-header {
+	margin-bottom: 20px;
 }
 
 .header-subtitle {
@@ -583,15 +488,7 @@
 		font-size: 0.6em;
 	}
 	
-	.compact-player {
-		padding: 3px 6px;
-		font-size: 0.8em;
-	}
-	
-	.compact-footer {
-		font-size: 0.7em;
-		padding: 3px 6px;
-	}
+
 }
 
 /* For very small heights */
@@ -633,15 +530,7 @@
 		font-size: 0.7em;
 	}
 	
-	.compact-player {
-		padding: 2px 4px;
-		font-size: 0.75em;
-	}
-	
-	.compact-footer {
-		padding: 2px 4px;
-		font-size: 0.65em;
-	}
+
 	
 	.progress-text {
 		font-size: 0.55em;

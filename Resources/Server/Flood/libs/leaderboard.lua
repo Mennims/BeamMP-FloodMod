@@ -9,8 +9,10 @@ M.state = {
     currentRound = {},
     dailyRecords = {},
     weeklyRecords = {},
-    lastUpdateTime = 0,
-    updateInterval = 1000, -- Send updates every 1 second
+    lastCurrentRoundUpdate = 0,
+    lastFullUpdate = 0,
+    currentRoundInterval = 250, -- Send current round updates every 250ms during race
+    fullLeaderboardInterval = 5000, -- Send full leaderboard every 5 seconds
 }
 
 -- Templates for leaderboard entries
@@ -351,14 +353,9 @@ function M.getWeeklyLeaderboard()
     return bestRecords
 end
 
--- Send leaderboard updates to clients
-function M.sendLeaderboardUpdate(targetPlayerId)
+-- Send full leaderboard updates to clients (all tabs)
+function M.sendFullLeaderboardUpdate(targetPlayerId)
     local currentTime = os.time()
-    
-    -- Only send updates at specified intervals
-    if currentTime - M.state.lastUpdateTime < (M.state.updateInterval / 1000) then
-        return
-    end
     
     local data = {
         currentRound = M.getCurrentRoundLeaderboard(),
@@ -375,7 +372,49 @@ function M.sendLeaderboardUpdate(targetPlayerId)
         MP.TriggerClientEvent(-1, "E_LeaderboardUpdate", jsonData)
     end
     
-    M.state.lastUpdateTime = currentTime
+    M.state.lastFullUpdate = currentTime
+end
+
+-- Send only current round leaderboard updates (fast updates during race)
+function M.sendCurrentRoundUpdate(targetPlayerId)
+    local currentTime = os.time() * 1000 -- Use milliseconds for precise timing
+    
+    local data = {
+        currentRound = M.getCurrentRoundLeaderboard(),
+        timestamp = currentTime,
+        currentRoundOnly = true -- Flag to indicate this is current round only
+    }
+    
+    local jsonData = Util.JsonEncode(data)
+    
+    if targetPlayerId then
+        MP.TriggerClientEvent(targetPlayerId, "E_LeaderboardCurrentRoundUpdate", jsonData)
+    else
+        MP.TriggerClientEvent(-1, "E_LeaderboardCurrentRoundUpdate", jsonData)
+    end
+    
+    M.state.lastCurrentRoundUpdate = currentTime
+end
+
+-- Legacy function for compatibility - sends full update
+function M.sendLeaderboardUpdate(targetPlayerId)
+    M.sendFullLeaderboardUpdate(targetPlayerId)
+end
+
+-- Broadcast current round updates (250ms during race)
+function M.broadcastCurrentRoundUpdate()
+    local currentTime = os.time() * 1000
+    if currentTime - M.state.lastCurrentRoundUpdate >= M.state.currentRoundInterval then
+        M.sendCurrentRoundUpdate()
+    end
+end
+
+-- Broadcast full leaderboard updates (5 seconds always)
+function M.broadcastFullLeaderboardUpdate()
+    local currentTime = os.time() * 1000
+    if currentTime - M.state.lastFullUpdate >= M.state.fullLeaderboardInterval then
+        M.sendFullLeaderboardUpdate()
+    end
 end
 
 -- Calculate composite score for leaderboard ranking

@@ -12,17 +12,39 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			$scope.roundTime = "00:00";
 			$scope.activeTab = "current";
 			$scope.isAppFocused = false;
-			$scope.compactHeaderHidden = false;
 			$scope.roundStartTime = 0;
+			$scope.isRoundActive = false;
 
-			// Focus management
+			// Focus management with debouncing to prevent flickering
+			let focusTimeout = null;
+			
 			$scope.setAppFocus = function(focused) {
-				$scope.isAppFocused = focused;
+				// Clear any pending focus changes
+				if (focusTimeout) {
+					clearTimeout(focusTimeout);
+					focusTimeout = null;
+				}
+				
+				if (focused) {
+					// Immediately focus when entering
+					$scope.isAppFocused = true;
+				} else {
+					// Delay unfocus to prevent flickering when clicking tabs
+					focusTimeout = setTimeout(function() {
+						$scope.isAppFocused = false;
+						// Reset to current race tab when losing focus
+						$scope.activeTab = 'current';
+						$scope.$apply();
+						focusTimeout = null;
+					}, 100); // 100ms delay
+				}
 			};
 
 			// Tab management
 			$scope.setActiveTab = function(tab) {
 				$scope.activeTab = tab;
+				// Ensure we stay focused when switching tabs
+				$scope.setAppFocus(true);
 			};
 
 			// Helper functions
@@ -35,9 +57,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				}
 			};
 
-			$scope.getTopThree = function() {
-				return $scope.leaderboardData.slice(0, 3);
-			};
+
 
 			$scope.getPlayerCount = function() {
 				switch($scope.activeTab) {
@@ -89,15 +109,15 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				}
 			};
 
-			// Handle leaderboard data from server
-			function handleLeaderboardUpdate(data) {
+						// Handle fast current round updates (during race)
+			function handleCurrentRoundUpdate(data) {
 				if (!data) return;
 				
 				try {
 					const leaderboardData = JSON.parse(data);
 					
-					// Update current round data
-					if (leaderboardData.currentRound) {
+					// Update only current round data (fast updates during race)
+					if (leaderboardData.currentRound && Array.isArray(leaderboardData.currentRound)) {
 						$scope.leaderboardData = leaderboardData.currentRound.map((entry, index) => ({
 							rank: entry.position,
 							name: entry.name,
@@ -112,41 +132,80 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 							isCurrentPlayer: false, // TODO: Determine current player
 							isAlive: entry.isAlive
 						}));
+						$scope.$apply(); // Force digest cycle for fast updates
 					}
+				} catch (error) {
+					console.error('Error parsing current round leaderboard data:', error);
+				}
+			}
+
+			// Handle leaderboard data from server
+			function handleLeaderboardUpdate(data) {
+				if (!data) return;
+				
+				try {
+					const leaderboardData = JSON.parse(data);
 					
-					// Update daily records
-					if (leaderboardData.dailyRecords) {
-						$scope.dailyRecords = leaderboardData.dailyRecords.map((record, index) => ({
-							rank: record.position,
-							name: record.name,
-							distance: Math.floor(record.finalDistanceTraveled || 0), // Distance traveled
-							power: record.enginePower,
-							timeAlive: record.timeAlive || 0,
-							timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
-							floodSpeed: record.floodSpeed,
-							maxDistance: Math.floor(record.trackLength),
-							progressPercent: record.progressPercent,
-							resetsUsed: record.resetsUsed,
-							vehicle: record.vehicleName || "Unknown Vehicle"
-						}));
-					}
+					// Update current round data
+				if (leaderboardData.currentRound && Array.isArray(leaderboardData.currentRound)) {
+					$scope.leaderboardData = leaderboardData.currentRound.map((entry, index) => ({
+						rank: entry.position,
+						name: entry.name,
+						vehicle: entry.vehicleName || "Unknown Vehicle",
+						distance: Math.floor(entry.bestDistanceTraveled || 0), // Best distance traveled
+						power: entry.enginePower,
+						currentDistance: Math.floor(entry.bestDistanceTraveled || 0), // Best distance traveled
+						totalDistance: Math.floor(entry.trackLength),
+						progressPercent: entry.progressPercent,
+						resetsUsed: entry.resetsUsed,
+						timeAlive: entry.timeAlive || 0,
+						isCurrentPlayer: false, // TODO: Determine current player
+						isAlive: entry.isAlive
+					}));
+				} else {
+					// No current round data, initialize empty array
+					$scope.leaderboardData = [];
+				}
 					
-					// Update weekly records
-					if (leaderboardData.weeklyRecords) {
-						$scope.weeklyRecords = leaderboardData.weeklyRecords.map((record, index) => ({
-							rank: record.position,
-							name: record.name,
-							distance: Math.floor(record.finalDistanceTraveled || 0), // Distance traveled
-							power: record.enginePower,
-							timeAlive: record.timeAlive || 0,
-							timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
-							floodSpeed: record.floodSpeed,
-							maxDistance: Math.floor(record.trackLength),
-							progressPercent: record.progressPercent,
-							resetsUsed: record.resetsUsed,
-							vehicle: record.vehicleName || "Unknown Vehicle"
-						}));
-					}
+									// Update daily records
+				if (leaderboardData.dailyRecords && Array.isArray(leaderboardData.dailyRecords)) {
+					$scope.dailyRecords = leaderboardData.dailyRecords.map((record, index) => ({
+						rank: record.position,
+						name: record.name,
+						distance: Math.floor(record.finalDistanceTraveled || 0), // Distance traveled
+						power: record.enginePower,
+						timeAlive: record.timeAlive || 0,
+						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
+						floodSpeed: record.floodSpeed,
+						maxDistance: Math.floor(record.trackLength),
+						progressPercent: record.progressPercent,
+						resetsUsed: record.resetsUsed,
+						vehicle: record.vehicleName || "Unknown Vehicle"
+					}));
+				} else {
+					// No daily records, keep existing or initialize empty
+					$scope.dailyRecords = $scope.dailyRecords || [];
+				}
+				
+				// Update weekly records
+				if (leaderboardData.weeklyRecords && Array.isArray(leaderboardData.weeklyRecords)) {
+					$scope.weeklyRecords = leaderboardData.weeklyRecords.map((record, index) => ({
+						rank: record.position,
+						name: record.name,
+						distance: Math.floor(record.finalDistanceTraveled || 0), // Distance traveled
+						power: record.enginePower,
+						timeAlive: record.timeAlive || 0,
+						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
+						floodSpeed: record.floodSpeed,
+						maxDistance: Math.floor(record.trackLength),
+						progressPercent: record.progressPercent,
+						resetsUsed: record.resetsUsed,
+						vehicle: record.vehicleName || "Unknown Vehicle"
+					}));
+				} else {
+					// No weekly records, keep existing or initialize empty
+					$scope.weeklyRecords = $scope.weeklyRecords || [];
+				}
 					
 				} catch (error) {
 					console.error('Error parsing leaderboard data:', error);
@@ -248,7 +307,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						isAlive: false
 					}
 				];
-				
+
 				// Daily records dummy data
 				$scope.dailyRecords = [
 					{
@@ -304,7 +363,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						vehicle: "Ibishu Covet"
 					}
 				];
-				
+
 				// Weekly records dummy data
 				$scope.weeklyRecords = [
 					{
@@ -383,11 +442,14 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 
 			// Initialize round timer
 			function updateRoundTimer() {
-				if ($scope.roundStartTime > 0) {
+				if ($scope.roundStartTime > 0 && $scope.isRoundActive) {
 					const elapsed = Math.floor((Date.now() / 1000) - $scope.roundStartTime);
-					const minutes = Math.floor(elapsed / 60);
-					const seconds = elapsed % 60;
-					$scope.roundTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+				const minutes = Math.floor(elapsed / 60);
+				const seconds = elapsed % 60;
+				$scope.roundTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+				} else if (!$scope.isRoundActive && $scope.roundStartTime > 0) {
+					// Round has ended, keep the final time
+					// Timer stops updating but shows final time
 				} else {
 					$scope.roundTime = "00:00";
 				}
@@ -404,6 +466,9 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				if (timerInterval) {
 					clearInterval(timerInterval);
 				}
+				if (focusTimeout) {
+					clearTimeout(focusTimeout);
+				}
 			});
 
 			// Set up event handler for receiving leaderboard data from server
@@ -414,9 +479,21 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				handleLeaderboardUpdate(data);
 			});
 			
+			// Listen for fast current round updates during race
+			$scope.$on('LeaderboardCurrentRoundUpdate', function(event, data) {
+				handleCurrentRoundUpdate(data);
+			});
+			
 			// Listen for round start events
 			$scope.$on('RoundStarted', function(event, startTime) {
 				$scope.roundStartTime = startTime;
+				$scope.isRoundActive = true;
+			});
+			
+			// Listen for round end events
+			$scope.$on('RoundEnded', function(event, endData) {
+				$scope.isRoundActive = false;
+				// Timer will stop updating but keep showing final time
 			});
 		}
 	}

@@ -119,6 +119,9 @@ local function beginFlood()
     M.state.roundStartTime = os.time() -- Track round start time
 
     MP.CreateEventTimer("ET_Update", 25)
+    
+    -- Start fast current round leaderboard updates during race
+    MP.CreateEventTimer("ET_LeaderboardCurrentRound", 250)
 
     C.setVehicleFreeze(false)
 
@@ -485,7 +488,6 @@ function onPlayerJoin(pid)
 
     U.setTimeout(function()
         welcomePlayer(pid)
-        L.sendLeaderboardUpdate(pid)
     end, 4000)
 
     local success = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
@@ -509,7 +511,6 @@ function onPlayerJoin(pid)
     end
     updatePlayerState(pid)
     
-    -- Send leaderboard data to new player
     U.setTimeout(function()
         -- Initialize player in leaderboard if round is active
         if M.options.enabled and M.state.roundStartTime > 0 then
@@ -520,8 +521,6 @@ function onPlayerJoin(pid)
                 L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
             end
         end
-        
-        L.sendLeaderboardUpdate(pid)
         
         -- Send round start time if round is active
         if M.state.roundStartTime > 0 then
@@ -537,7 +536,6 @@ function onPlayerDisconnect(pid)
 end
 
 function onVehicleSpawn(pid, vid, data)
-    L.sendLeaderboardUpdate(pid)
     if MP.GetPlayerCount() >= 1 and not M.autoStartCountdown.started and not M.countdown.started and not M.options.enabled and not M.state.floodStartQueued then
         startAutoStartCountdown()
     end
@@ -559,9 +557,14 @@ end
 
 function onInit()
     MP.CancelEventTimer("ET_Update")
+    MP.CancelEventTimer("ET_LeaderboardFull")
+    MP.CancelEventTimer("ET_LeaderboardCurrentRound")
     
     -- Initialize leaderboard system
     L.initialize()
+    
+    -- Start full leaderboard broadcasting timer (every 5 seconds always)
+    MP.CreateEventTimer("ET_LeaderboardFull", 5000)
 
     for pid, player in pairs(MP.GetPlayers()) do
         onPlayerJoin(pid)
@@ -594,6 +597,16 @@ function T_AutoStartCountdown()
             M.autoStartCountdown.currentCount = M.autoStartCountdown.currentCount + 1;
         end
     end
+end
+
+function T_LeaderboardFull()
+    -- Broadcast full leaderboard updates every 5 seconds always
+    L.broadcastFullLeaderboardUpdate()
+end
+
+function T_LeaderboardCurrentRound()
+    -- Broadcast current round updates every 250ms during race
+    L.broadcastCurrentRoundUpdate()
 end
 
 function T_Update()
@@ -686,9 +699,6 @@ function T_Update()
     -- Continue with normal flood logic - only stop when players are dead or no vehicles
     stopFloodWhenPlayersDead()
     stopFloodWhenNoVehicles()
-    
-    -- Send leaderboard updates to clients
-    L.sendLeaderboardUpdate()
 end
 
 function E_OnInitialize(pid, waterLevel)
@@ -745,10 +755,14 @@ end
 
 M.commands["stop"] = function(pid)
     MP.CancelEventTimer("ET_Update")
+    MP.CancelEventTimer("ET_LeaderboardCurrentRound") -- Stop fast current round updates
     resetPlayersRespawnedCount()
     resetAutoStartCountdown()
     resetCountdown();
     C.setDynamicCollisionEnabled(false)
+    
+    -- Notify clients that round has ended
+    MP.TriggerClientEvent(-1, "E_RoundEnded", tostring(os.time()))
 
     U.setTimeout(function()
         C.setVehicleRecoveryEnabled(true)
@@ -1023,6 +1037,8 @@ MP.RegisterEvent("E_OnInitiliaze", "E_OnInitialize")
 MP.RegisterEvent("ET_Update", "T_Update")
 MP.RegisterEvent("ET_Countdown", "T_Countdown")
 MP.RegisterEvent("ET_AutoStartCountdown", "T_AutoStartCountdown")
+MP.RegisterEvent("ET_LeaderboardFull", "T_LeaderboardFull")
+MP.RegisterEvent("ET_LeaderboardCurrentRound", "T_LeaderboardCurrentRound")
 MP.CreateEventTimer("ET_Update", 25)
 
 -- Server events

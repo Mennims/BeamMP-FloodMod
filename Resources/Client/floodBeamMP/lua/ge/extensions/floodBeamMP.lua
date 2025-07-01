@@ -330,12 +330,24 @@ AddEventHandler("E_LeaderboardUpdate", function(leaderboardData)
     guihooks.trigger('LeaderboardUpdate', leaderboardData)
 end)
 
+AddEventHandler("E_LeaderboardCurrentRoundUpdate", function(leaderboardData)
+    guihooks.trigger('LeaderboardCurrentRoundUpdate', leaderboardData)
+end)
+
 AddEventHandler("E_RoundStarted", function(startTimeStr)
     M.state.roundStartTime = tonumber(startTimeStr) or os.time()
     log("I", "floodBeamMP", "Round started at: " .. M.state.roundStartTime)
     
     -- Send round start time to UI
     guihooks.trigger('RoundStarted', M.state.roundStartTime)
+end)
+
+AddEventHandler("E_RoundEnded", function(endTimeStr)
+    local endTime = tonumber(endTimeStr) or os.time()
+    log("I", "floodBeamMP", "Round ended at: " .. endTime)
+    
+    -- Send round end event to UI
+    guihooks.trigger('RoundEnded', endTime)
 end)
 
 -- Hooks
