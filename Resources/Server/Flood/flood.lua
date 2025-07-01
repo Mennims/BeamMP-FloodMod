@@ -480,7 +480,7 @@ end
 -- BeamMP events
 
 function onPlayerJoin(pid)
-    C.setUiLayout(pid, "flood")
+    C.setUiLayout(pid, "flood v0.20")
     C.spawnDefaultVehicle(pid)
 
     U.setTimeout(function()
