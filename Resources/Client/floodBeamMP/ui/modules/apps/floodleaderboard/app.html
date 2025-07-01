@@ -7,8 +7,8 @@
 
 	<!-- Main leaderboard content -->
 	<div class="leaderboard-content">
-		<!-- Tab navigation - only shown when focused -->
-		<div class="tab-navigation" ng-show="isAppFocused">
+		<!-- Tab navigation - shown when focused or temporarily after round ends -->
+		<div class="tab-navigation" ng-show="isAppFocused || showTabsTemporarily">
 			<div class="tab-button" ng-class="{'active': activeTab === 'current'}" ng-click="setActiveTab('current')">
 				Current Round
 			</div>
@@ -161,7 +161,7 @@
 		</div>
 	</div>
 
-	<div class="leaderboard-footer" ng-show="isAppFocused">
+	<div class="leaderboard-footer" ng-show="isAppFocused || showTabsTemporarily">
 		<div class="footer-stats">
 			<span class="stat-item" ng-show="activeTab === 'current'">Players: {{getPlayerCount()}}</span>
 			<span class="stat-separator" ng-show="activeTab === 'current'">•</span>

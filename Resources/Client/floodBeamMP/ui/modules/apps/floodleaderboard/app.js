@@ -14,9 +14,11 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			$scope.isAppFocused = false;
 			$scope.roundStartTime = 0;
 			$scope.isRoundActive = false;
+			$scope.showTabsTemporarily = false;
 
 			// Focus management with debouncing to prevent flickering
 			let focusTimeout = null;
+			let tabShowTimeout = null;
 			
 			$scope.setAppFocus = function(focused) {
 				// Clear any pending focus changes
@@ -45,6 +47,13 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				$scope.activeTab = tab;
 				// Ensure we stay focused when switching tabs
 				$scope.setAppFocus(true);
+				
+				// If user clicks a tab during temporary display, cancel the auto-hide
+				if ($scope.showTabsTemporarily && tabShowTimeout) {
+					clearTimeout(tabShowTimeout);
+					tabShowTimeout = null;
+					$scope.showTabsTemporarily = false; // Let normal focus take over
+				}
 			};
 
 			// Helper functions
@@ -469,6 +478,9 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				if (focusTimeout) {
 					clearTimeout(focusTimeout);
 				}
+				if (tabShowTimeout) {
+					clearTimeout(tabShowTimeout);
+				}
 			});
 
 			// Set up event handler for receiving leaderboard data from server
@@ -494,6 +506,24 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			$scope.$on('RoundEnded', function(event, endData) {
 				$scope.isRoundActive = false;
 				// Timer will stop updating but keep showing final time
+				
+				// Show tabs temporarily for 5 seconds when round ends
+				$scope.showTabsTemporarily = true;
+				$scope.isAppFocused = true; // Force focus to show tabs
+				
+				// Clear any existing timeout
+				if (tabShowTimeout) {
+					clearTimeout(tabShowTimeout);
+				}
+				
+				// Hide tabs after 5 seconds and reset to current tab
+				tabShowTimeout = setTimeout(function() {
+					$scope.showTabsTemporarily = false;
+					$scope.activeTab = 'current';
+					$scope.isAppFocused = false; // Return to unfocused state
+					$scope.$apply();
+					tabShowTimeout = null;
+				}, 5000); // 5 seconds
 			});
 		}
 	}
