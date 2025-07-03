@@ -174,6 +174,10 @@ local function startAutoStartCountdown()
     end
 
     M.autoStartCountdown.started = true;
+    U.setTimeout(function()
+        MP.hSendChatMessage(-1, "Join Discord!!! Click the Discord icon in the Sea Level meter and paste the URL in a browser.")
+    end, 5000)
+
     MP.CreateEventTimer("ET_AutoStartCountdown", 1000)
 end
 
@@ -343,24 +347,24 @@ local function stopFloodWhenPlayersDead()
             MP.hSendChatMessage(-1, "^6^o^l" .. lastPlayerAliveName .. " ^r^6^l^ois the last player alive, stopping flood in 10 seconds")
             
             -- Show rankings
-            local rankings = getPlayerRankings()
-            MP.hSendChatMessage(-1, "^7^lRankings")
-            for i, player in ipairs(rankings) do
-                local playerColour = "^f"
+            -- local rankings = getPlayerRankings()
+            -- MP.hSendChatMessage(-1, "^7^lRankings")
+            -- for i, player in ipairs(rankings) do
+            --     local playerColour = "^f"
 
-                if i == 1 then
-                    playerColour = "^6"
-                elseif i == 2 then
-                    playerColour = "^2"
-                elseif i == 3 then
-                    playerColour = "^3"
-                end
+            --     if i == 1 then
+            --         playerColour = "^6"
+            --     elseif i == 2 then
+            --         playerColour = "^2"
+            --     elseif i == 3 then
+            --         playerColour = "^3"
+            --     end
 
-                local status = player.dead and "^1DEAD" or "^2ALIVE"
-                MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
-                                    math.floor(player.distanceTraveled) .. "m traveled " .. status)
-                if i >= 5 then break end -- Only show top 5
-            end
+            --     local status = player.dead and "^1DEAD" or "^2ALIVE"
+            --     MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
+            --                         math.floor(player.distanceTraveled) .. "m traveled " .. status)
+            --     if i >= 5 then break end -- Only show top 5
+            -- end
 
             M.state.floodStartQueued = true
             U.setTimeout(function()
@@ -376,24 +380,24 @@ local function stopFloodWhenPlayersDead()
             MP.hSendChatMessage(-1, "^6^oNo players remaining, stopping flood")
             
             -- Show rankings
-            local rankings = getPlayerRankings()
-            MP.hSendChatMessage(-1, "^7^lRankings")
-            for i, player in ipairs(rankings) do
-                local playerColour = "^f"
+            -- local rankings = getPlayerRankings()
+            -- MP.hSendChatMessage(-1, "^7^lRankings")
+            -- for i, player in ipairs(rankings) do
+            --     local playerColour = "^f"
 
-                if i == 1 then
-                    playerColour = "^6"
-                elseif i == 2 then
-                    playerColour = "^2"
-                elseif i == 3 then
-                    playerColour = "^3"
-                end
+            --     if i == 1 then
+            --         playerColour = "^6"
+            --     elseif i == 2 then
+            --         playerColour = "^2"
+            --     elseif i == 3 then
+            --         playerColour = "^3"
+            --     end
 
-                local status = player.dead and "^1DEAD" or "^2ALIVE"
-                MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
-                                    math.floor(player.distanceTraveled) .. "m traveled " .. status)
-                if i >= 5 then break end -- Only show top 5
-            end
+            --     local status = player.dead and "^1DEAD" or "^2ALIVE"
+            --     MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
+            --                         math.floor(player.distanceTraveled) .. "m traveled " .. status)
+            --     if i >= 5 then break end -- Only show top 5
+            -- end
 
             M.state.floodStartQueued = true
 
@@ -442,8 +446,9 @@ end
 
 local function welcomePlayer(pid)
     MP.hSendChatMessage(pid, "^eWelcome to the flood! Flood will start automatically.")
+    MP.hSendChatMessage(pid, "^Kindl reconnect if you experience any issues, or if the leaderboard is not visible. Bug fixes in progress.")
     MP.hSendChatMessage(pid, "Use ^2/flood_start^r to start the flood early.")
-    -- MP.hSendChatMessage(pid, "Use ^2/flood_stop^r to stop the flood.")
+    MP.hSendChatMessage(pid, "Use ^2/flood_stop^r to stop the flood.")
     -- MP.hSendChatMessage(pid, "Use ^2/flood_restart^r to restart the flood.")
     -- MP.hSendChatMessage(pid, "Use ^b/flood_reset^r to reset the flood.")
     -- MP.hSendChatMessage(pid, "Use ^b/flood_level^r to set the flood level.")
@@ -476,7 +481,7 @@ local function prepareFlood()
         C.setVehicleFreeze(true)
         C.setVehicleRecoveryEnabled(false)
         resetVehiclesToStartPositions()
-        U.setTimeout(startCountdown, 500)
+        U.setTimeout(startCountdown, 1000)
     end, 250)
 end
 
@@ -487,6 +492,7 @@ function onPlayerJoin(pid)
     C.spawnDefaultVehicle(pid)
 
     U.setTimeout(function()
+        C.setUiLayout(pid, "flood v0.20")
         welcomePlayer(pid)
     end, 4000)
 
@@ -659,9 +665,9 @@ function T_Update()
     updatePlayersStatesVehicles()
     ensureVehiclesAreAboveWaterLine()
     
-    -- Update leaderboard data
+    -- Update leaderboard data (only for alive players)
     for pid, playerState in pairs(M.state.players) do
-        if playerState.status == "inGame" then
+        if playerState.status == "inGame" and not playerState.dead then
             L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
         end
     end
@@ -669,7 +675,7 @@ function T_Update()
     -- Check for winners (players who reached the destination)
     local winners = {}
     local currentRound = L.getCurrentRoundLeaderboard()
-    local trackLength = M.mapConfig.totalDistance or 13098
+    local trackLength = M.mapConfig.totalDistance or 13099
     
     for _, entry in ipairs(currentRound) do
         if entry.bestDistanceTraveled >= trackLength and entry.isAlive then

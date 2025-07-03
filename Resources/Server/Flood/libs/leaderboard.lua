@@ -146,7 +146,7 @@ function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfi
         M.state.currentRound[playerId] = entry
     end
     
-    -- Update basic info
+    -- Update basic infoa
     entry.name = playerState.name or ""
     local isAlive = not playerState.dead
     entry.isAlive = isAlive
@@ -189,7 +189,7 @@ function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfi
     
     -- Update vehicle info
     entry.vehicleName = M.getVehicleName(playerState.vehicle.config)
-    entry.enginePower = playerState.vehiclePower or 0
+    entry.enginePower = M.getEngineKW(playerState.vehiclePower) or 0
 end
 
 -- Remove a player from current round leaderboard
@@ -272,14 +272,14 @@ function M.getDailyLeaderboard()
     
     -- Find best record for each player today (best = highest composite score)
     for _, record in ipairs(M.state.dailyRecords) do
-        local currentBest = playerBest[record.playerId]
+        local currentBest = playerBest[record.name]
         if not currentBest then
-            playerBest[record.playerId] = record
+            playerBest[record.name] = record
         else
             local currentScore = M.calculateScore(currentBest)
             local newScore = M.calculateScore(record)
             if newScore > currentScore then
-                playerBest[record.playerId] = record
+                playerBest[record.name] = record
             end
         end
     end
@@ -316,14 +316,14 @@ function M.getWeeklyLeaderboard()
     
     -- Find best record for each player this week (best = highest composite score)
     for _, record in ipairs(M.state.weeklyRecords) do
-        local currentBest = playerBest[record.playerId]
+        local currentBest = playerBest[record.name]
         if not currentBest then
-            playerBest[record.playerId] = record
+            playerBest[record.name] = record
         else
             local currentScore = M.calculateScore(currentBest)
             local newScore = M.calculateScore(record)
             if newScore > currentScore then
-                playerBest[record.playerId] = record
+                playerBest[record.name] = record
             end
         end
     end
@@ -418,24 +418,29 @@ function M.broadcastFullLeaderboardUpdate()
 end
 
 -- Calculate composite score for leaderboard ranking
--- Takes into account distance, survival time, and flood speed
+-- Takes into account distance, completion time, and flood speed
 function M.calculateScore(entry, roundFloodSpeed)
     local distance = entry.bestDistanceTraveled or entry.finalDistanceTraveled or 0
     local timeAlive = entry.timeAlive or 0
-    local trackLength = entry.trackLength or 13098
-    local floodSpeed = entry.floodSpeed or roundFloodSpeed or 0.05
+    local trackLength = entry.trackLength or 13099
+    local floodSpeed = entry.floodSpeed or roundFloodSpeed
     
     -- Normalize values to 0-1 scale for fair weighting
     local distanceScore = math.min(1.0, distance / trackLength) -- 0-1 based on track completion
-    local timeScore = math.min(1.0, timeAlive / 300) -- 0-1 based on 5 minutes survival time
-    local floodSpeedMultiplier = math.max(0.5, math.min(2.0, floodSpeed / 0.05)) -- 0.5-2.0x based on flood speed
+    
+    -- Time score: LOWER time = HIGHER score (faster completion is better)
+    -- Inverted scoring: 1.0 for instant completion, decreasing as time increases
+    local maxTime = 900 -- 15 minutes reference time
+    local timeScore = 1.0 - math.min(1.0, timeAlive / maxTime) -- Inverted: lower time = higher score
+    
+    local floodSpeedMultiplier = math.max(0.5, math.min(2.0, floodSpeed / 0.055)) -- 0.5-2.0x based on flood speed
     
     -- Weighted scoring formula
-    -- Distance: 60% weight (primary factor)
-    -- Time: 25% weight (survival skill)
-    -- Flood speed: 15% weight (difficulty multiplier)
-    local baseScore = (distanceScore * 0.60) + (timeScore * 0.25)
-    local finalScore = baseScore * (1.0 + (floodSpeedMultiplier - 1.0) * 0.15)
+    -- Distance: 40% weight (primary factor)
+    -- Time: 35% weight (speed bonus - lower time = higher score)
+    -- Flood speed: 25% weight (difficulty multiplier)
+    local baseScore = (distanceScore * 0.60) + (timeScore * 0.35)
+    local finalScore = baseScore * (1.0 + (floodSpeedMultiplier - 1.0) * 0.25)
     
     -- Bonus for completing the track
     if distance >= trackLength * 0.95 then -- 95% completion bonus
@@ -443,8 +448,18 @@ function M.calculateScore(entry, roundFloodSpeed)
     end
     
     -- Penalty for early death (if died within first 30 seconds)
-    if not entry.isAlive and timeAlive < 30 then
+    if timeAlive < 30 and distance < trackLength * 0.1 then -- Only penalize if they didn't get far
         finalScore = finalScore * 0.8
+    end
+
+    -- Prevent players from cheating the leaderboard by using a higher flood speed
+    if floodSpeed > 1 or distance <= 0 then
+        finalScore = 0
+    end
+
+    -- Prevent players from cheating the leaderboard by teleporting to the end
+    if timeAlive < 300 and distance > trackLength * 0.8 then
+        finalScore = 0
     end
     
     return finalScore
@@ -461,10 +476,8 @@ function M.getVehicleName(vehicleConfig)
     return vehicleConfig.jbm
 end
 
-function M.getEngineKW(vehicleConfig)
-    -- Stub: Extract engine power from vehicle config  
-    -- This would need to access engine specifications from the vehicle data
-    return 0
+function M.getEngineKW(vehiclePowerHp)
+    return vehiclePowerHp * 0,7457 or 0
 end
 
 return M 

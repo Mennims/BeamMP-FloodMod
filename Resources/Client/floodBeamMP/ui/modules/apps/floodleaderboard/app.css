@@ -156,12 +156,12 @@
 	grid-template-columns: 35px 90px 140px 50px 45px 50px;
 }
 
-/* Daily/Weekly tab grid layout: 8 columns (player, progress, time, flood speed, resets, power, vehicle) */
+/* Daily/Weekly tab grid layout: 9 columns (player, progress, time, flood speed, resets, power, vehicle, datetime) */
 .daily-tab .table-header,
 .daily-tab .player-row,
 .weekly-tab .table-header,
 .weekly-tab .player-row {
-	grid-template-columns: 35px 90px 120px 50px 70px 45px 45px 100px;
+	grid-template-columns: 35px 90px 120px 50px 70px 45px 45px 100px 80px;
 }
 
 /* Text overflow handling with ellipsis */
@@ -282,8 +282,10 @@
 }
 
 .col-datetime {
+	text-align: center;
 	font-size: 0.85em;
 	color: #cccccc;
+	font-weight: 500;
 }
 
 .col-flood-speed {
@@ -432,7 +434,7 @@
 	.daily-tab .player-row,
 	.weekly-tab .table-header,
 	.weekly-tab .player-row {
-		grid-template-columns: 25px 90px 100px 45px 60px 40px 70px;
+		grid-template-columns: 25px 90px 100px 45px 60px 40px 70px 70px;
 	}
 	
 	.daily-tab .col-resets,
@@ -480,7 +482,9 @@
 	}
 	
 	.daily-tab .col-power,
-	.weekly-tab .col-power {
+	.weekly-tab .col-power,
+	.daily-tab .col-datetime,
+	.weekly-tab .col-datetime {
 		display: none;
 	}
 	

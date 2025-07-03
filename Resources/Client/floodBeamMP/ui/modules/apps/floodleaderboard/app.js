@@ -16,42 +16,93 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			$scope.isRoundActive = false;
 			$scope.showTabsTemporarily = false;
 
-			// Focus management with debouncing to prevent flickering
+			// Memory leak prevention and performance optimization
+			let timerInterval = null;
 			let focusTimeout = null;
 			let tabShowTimeout = null;
+			let isAppSuspended = false;
+			let isDestroyed = false;
+			let lastUpdateTime = 0;
+			const UPDATE_THROTTLE_MS = 100; // Throttle rapid updates
 			
-			$scope.setAppFocus = function(focused) {
-				// Clear any pending focus changes
-				if (focusTimeout) {
-					clearTimeout(focusTimeout);
-					focusTimeout = null;
+			// Event listener deregistration functions
+			let eventDeregistrationFunctions = [];
+			
+			// Safe timeout/interval management
+			function safeSetTimeout(callback, delay) {
+				if (isDestroyed) return null;
+				return setTimeout(function() {
+					if (!isDestroyed) callback();
+				}, delay);
+			}
+			
+			function safeSetInterval(callback, delay) {
+				if (isDestroyed) return null;
+				return setInterval(function() {
+					if (!isDestroyed && !isAppSuspended) callback();
+				}, delay);
+			}
+			
+			function safeClearTimeout(timeoutId) {
+				if (timeoutId) {
+					clearTimeout(timeoutId);
+					return null;
 				}
+			}
+			
+			function safeClearInterval(intervalId) {
+				if (intervalId) {
+					clearInterval(intervalId);
+					return null;
+				}
+			}
+
+			// Suspension handling for BeamMP pause menu
+			function handleAppSuspension(suspended) {
+				isAppSuspended = suspended;
+				if (suspended) {
+					// App is suspended (pause menu shown), stop all timers to prevent memory leaks
+					console.log('[FloodLeaderboard] App suspended - pausing timers');
+				} else {
+					// App resumed, restart timers if needed
+					console.log('[FloodLeaderboard] App resumed - restarting timers');
+				}
+			}
+
+			// Focus management with debouncing to prevent flickering
+			$scope.setAppFocus = function(focused) {
+				if (isDestroyed) return;
+				
+				// Clear any pending focus changes
+				focusTimeout = safeClearTimeout(focusTimeout);
 				
 				if (focused) {
 					// Immediately focus when entering
 					$scope.isAppFocused = true;
 				} else {
 					// Delay unfocus to prevent flickering when clicking tabs
-					focusTimeout = setTimeout(function() {
-						$scope.isAppFocused = false;
-						// Reset to current race tab when losing focus
-						$scope.activeTab = 'current';
-						$scope.$apply();
-						focusTimeout = null;
+					focusTimeout = safeSetTimeout(function() {
+						if (!isDestroyed) {
+							$scope.isAppFocused = false;
+							// Reset to current race tab when losing focus
+							$scope.activeTab = 'current';
+							$scope.$apply();
+						}
 					}, 100); // 100ms delay
 				}
 			};
 
 			// Tab management
 			$scope.setActiveTab = function(tab) {
+				if (isDestroyed) return;
+				
 				$scope.activeTab = tab;
 				// Ensure we stay focused when switching tabs
 				$scope.setAppFocus(true);
 				
 				// If user clicks a tab during temporary display, cancel the auto-hide
 				if ($scope.showTabsTemporarily && tabShowTimeout) {
-					clearTimeout(tabShowTimeout);
-					tabShowTimeout = null;
+					tabShowTimeout = safeClearTimeout(tabShowTimeout);
 					$scope.showTabsTemporarily = false; // Let normal focus take over
 				}
 			};
@@ -65,8 +116,6 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 					default: return "";
 				}
 			};
-
-
 
 			$scope.getPlayerCount = function() {
 				switch($scope.activeTab) {
@@ -118,9 +167,18 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				}
 			};
 
-						// Handle fast current round updates (during race)
+			// Throttled update function to prevent excessive DOM updates
+			function throttledApply() {
+				const now = Date.now();
+				if (now - lastUpdateTime >= UPDATE_THROTTLE_MS && !isDestroyed && !isAppSuspended) {
+					lastUpdateTime = now;
+					$scope.$apply();
+				}
+			}
+
+			// Handle fast current round updates (during race)
 			function handleCurrentRoundUpdate(data) {
-				if (!data) return;
+				if (!data || isDestroyed || isAppSuspended) return;
 				
 				try {
 					const leaderboardData = JSON.parse(data);
@@ -141,7 +199,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 							isCurrentPlayer: false, // TODO: Determine current player
 							isAlive: entry.isAlive
 						}));
-						$scope.$apply(); // Force digest cycle for fast updates
+						throttledApply(); // Use throttled apply for performance
 					}
 				} catch (error) {
 					console.error('Error parsing current round leaderboard data:', error);
@@ -150,7 +208,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 
 			// Handle leaderboard data from server
 			function handleLeaderboardUpdate(data) {
-				if (!data) return;
+				if (!data || isDestroyed || isAppSuspended) return;
 				
 				try {
 					const leaderboardData = JSON.parse(data);
@@ -176,7 +234,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 					$scope.leaderboardData = [];
 				}
 					
-									// Update daily records
+				// Update daily records
 				if (leaderboardData.dailyRecords && Array.isArray(leaderboardData.dailyRecords)) {
 					$scope.dailyRecords = leaderboardData.dailyRecords.map((record, index) => ({
 						rank: record.position,
@@ -449,8 +507,10 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			// END DUMMY DATA - REMOVE ABOVE WHEN DONE
 			// ========================================
 
-			// Initialize round timer
+			// Initialize round timer with suspension awareness
 			function updateRoundTimer() {
+				if (isDestroyed || isAppSuspended) return; // Don't update when suspended
+				
 				if ($scope.roundStartTime > 0 && $scope.isRoundActive) {
 					const elapsed = Math.floor((Date.now() / 1000) - $scope.roundStartTime);
 				const minutes = Math.floor(elapsed / 60);
@@ -464,46 +524,70 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				}
 			}
 
-			// Start the timer
-			const timerInterval = setInterval(updateRoundTimer, 1000);
+			// Start the timer with safe interval management
+			timerInterval = safeSetInterval(updateRoundTimer, 1000);
 
 			// Initialize empty data - server will populate it
 			initializeEmptyData();
 
-			// Cleanup function
+			// Event listener registration with cleanup tracking
+			function registerEventListener(eventName, handler) {
+				const deregister = $scope.$on(eventName, handler);
+				eventDeregistrationFunctions.push(deregister);
+				return deregister;
+			}
+
+			// CRITICAL: Comprehensive cleanup function to prevent memory leaks
 			$scope.$on('$destroy', function() {
-				if (timerInterval) {
-					clearInterval(timerInterval);
-				}
-				if (focusTimeout) {
-					clearTimeout(focusTimeout);
-				}
-				if (tabShowTimeout) {
-					clearTimeout(tabShowTimeout);
-				}
+				console.log('[FloodLeaderboard] Cleaning up resources...');
+				isDestroyed = true;
+				
+				// Clear all timers and timeouts
+				timerInterval = safeClearInterval(timerInterval);
+				focusTimeout = safeClearTimeout(focusTimeout);
+				tabShowTimeout = safeClearTimeout(tabShowTimeout);
+				
+				// Deregister all event listeners
+				eventDeregistrationFunctions.forEach(function(deregister) {
+					if (typeof deregister === 'function') {
+						deregister();
+					}
+				});
+				eventDeregistrationFunctions = [];
+				
+				// Clear scope data to prevent memory retention
+				$scope.leaderboardData = null;
+				$scope.dailyRecords = null;
+				$scope.weeklyRecords = null;
+				
+				console.log('[FloodLeaderboard] Cleanup complete');
 			});
 
-			// Set up event handler for receiving leaderboard data from server
+			// Set up event handlers with proper cleanup tracking
 			$scope.handleLeaderboardUpdate = handleLeaderboardUpdate;
 			
 			// Listen for leaderboard updates from the game
-			$scope.$on('LeaderboardUpdate', function(event, data) {
+			registerEventListener('LeaderboardUpdate', function(event, data) {
 				handleLeaderboardUpdate(data);
 			});
 			
 			// Listen for fast current round updates during race
-			$scope.$on('LeaderboardCurrentRoundUpdate', function(event, data) {
+			registerEventListener('LeaderboardCurrentRoundUpdate', function(event, data) {
 				handleCurrentRoundUpdate(data);
 			});
 			
 			// Listen for round start events
-			$scope.$on('RoundStarted', function(event, startTime) {
-				$scope.roundStartTime = startTime;
-				$scope.isRoundActive = true;
+			registerEventListener('RoundStarted', function(event, startTime) {
+				if (!isDestroyed) {
+					$scope.roundStartTime = startTime;
+					$scope.isRoundActive = true;
+				}
 			});
 			
 			// Listen for round end events
-			$scope.$on('RoundEnded', function(event, endData) {
+			registerEventListener('RoundEnded', function(event, endData) {
+				if (isDestroyed) return;
+				
 				$scope.isRoundActive = false;
 				// Timer will stop updating but keep showing final time
 				
@@ -512,19 +596,42 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				$scope.isAppFocused = true; // Force focus to show tabs
 				
 				// Clear any existing timeout
-				if (tabShowTimeout) {
-					clearTimeout(tabShowTimeout);
-				}
+				tabShowTimeout = safeClearTimeout(tabShowTimeout);
 				
 				// Hide tabs after 5 seconds and reset to current tab
-				tabShowTimeout = setTimeout(function() {
-					$scope.showTabsTemporarily = false;
-					$scope.activeTab = 'current';
-					$scope.isAppFocused = false; // Return to unfocused state
-					$scope.$apply();
-					tabShowTimeout = null;
+				tabShowTimeout = safeSetTimeout(function() {
+					if (!isDestroyed) {
+						$scope.showTabsTemporarily = false;
+						$scope.activeTab = 'current';
+						$scope.isAppFocused = false; // Return to unfocused state
+						$scope.$apply();
+					}
 				}, 5000); // 5 seconds
 			});
+			
+			// Listen for app suspension events (BeamMP pause menu)
+			registerEventListener('AppSuspended', function(event, suspended) {
+				handleAppSuspension(suspended);
+			});
+			
+			// Listen for visibility change events (alternative suspension detection)
+			function handleVisibilityChange() {
+				if (!isDestroyed) {
+					handleAppSuspension(document.hidden || document.visibilityState === 'hidden');
+				}
+			}
+			
+			// Add visibility change listener if available
+			if (typeof document !== 'undefined' && document.addEventListener) {
+				document.addEventListener('visibilitychange', handleVisibilityChange);
+				
+				// Ensure this listener is also cleaned up
+				eventDeregistrationFunctions.push(function() {
+					if (typeof document !== 'undefined' && document.removeEventListener) {
+						document.removeEventListener('visibilitychange', handleVisibilityChange);
+					}
+				});
+			}
 		}
 	}
 }]);
