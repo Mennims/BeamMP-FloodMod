@@ -189,7 +189,7 @@ function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfi
     
     -- Update vehicle info
     entry.vehicleName = M.getVehicleName(playerState.vehicle.config)
-    entry.enginePower = M.getEngineKW(playerState.vehiclePower) or 0
+    entry.enginePower = M.getEngineKW(playerState.vehiclePower)
 end
 
 -- Remove a player from current round leaderboard
@@ -458,7 +458,7 @@ function M.calculateScore(entry, roundFloodSpeed)
     end
 
     -- Prevent players from cheating the leaderboard by teleporting to the end
-    if timeAlive < 300 and distance > trackLength * 0.8 then
+    if timeAlive < 240 and distance > trackLength * 0.7 then
         finalScore = 0
     end
     
@@ -477,7 +477,7 @@ function M.getVehicleName(vehicleConfig)
 end
 
 function M.getEngineKW(vehiclePowerHp)
-    return vehiclePowerHp * 0,7457 or 0
+    return math.floor(vehiclePowerHp * 0.7457 + 0.5)
 end
 
 return M 

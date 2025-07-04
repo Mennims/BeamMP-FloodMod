@@ -186,7 +186,7 @@ local function autoStartCountdownComplete()
     M.autoStartCountdown.started = false;
     print("Auto start countdown complete")
 
-    M.commands["start"]("")
+    M.commands["start"]()
 end
 
 local function resetAutoStartCountdown()
@@ -446,7 +446,7 @@ end
 
 local function welcomePlayer(pid)
     MP.hSendChatMessage(pid, "^eWelcome to the flood! Flood will start automatically.")
-    MP.hSendChatMessage(pid, "^Kindl reconnect if you experience any issues, or if the leaderboard is not visible. Bug fixes in progress.")
+    MP.hSendChatMessage(pid, "Kindly reconnect if you experience any issues, or if the leaderboard is not visible. Bug fixes in progress.")
     MP.hSendChatMessage(pid, "Use ^2/flood_start^r to start the flood early.")
     MP.hSendChatMessage(pid, "Use ^2/flood_stop^r to stop the flood.")
     -- MP.hSendChatMessage(pid, "Use ^2/flood_restart^r to restart the flood.")
@@ -710,6 +710,8 @@ end
 function E_OnInitialize(pid, waterLevel)
     waterLevel = tonumber(waterLevel) or nil
 
+    print("E_OnInitialize: waterLevel for player " .. MP.GetPlayerName(pid) .. " is " .. waterLevel)
+
     -- Make sure the level has an ocean, we use "invalidCount" to make sure it's not just 1 player that doesn't have an ocean
     if not waterLevel and invalidCount < 2 then
         print("E_OnInitialize: waterLevel for player " .. MP.GetPlayerName(pid) .. " is nil")
@@ -736,7 +738,7 @@ end
 
 M.commands["start"] = function(pid)
     if checkForNoVehicles() then
-        MP.hSendChatMessage(-1, "^4^lNo vehicles found, unable to start flood")
+        MP.hSendChatMessage(-1, "^4^lNo vehicles found, flood will start automatically when a vehicle spawns")
         return
     end
 

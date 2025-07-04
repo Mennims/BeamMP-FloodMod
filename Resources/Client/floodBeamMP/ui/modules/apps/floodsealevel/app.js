@@ -145,7 +145,7 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 					seaLevel = seaLevelResult;
 				});
 
-				if (playerVehicleZ && seaLevel && seaContainer) {
+				if (playerVehicleZ && seaLevel && seaContainer && appContainer) {
 					const maxMovement = appContainer.offsetHeight;
 					const gain = 0.7;
 					const minDistance = 0.01;
