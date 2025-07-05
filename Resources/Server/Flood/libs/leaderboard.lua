@@ -32,7 +32,10 @@ local currentRoundEntryTemplate = {
     timeAlive = 0, -- Time alive in seconds
     spawnTime = 0, -- When the player spawned/started this round
     deathTime = 0, -- When the player died (0 if still alive)
-    lastUpdate = 0 -- Timestamp of last update
+    lastUpdate = 0, -- Timestamp of last update
+    hasWon = false, -- Whether this player won the race (first to finish)
+    hasFinished = false, -- Whether this player finished the race (completed track)
+    finishTime = 0 -- When the player finished (0 if not finished)
 }
 
 local historicalEntryTemplate = {
@@ -48,7 +51,10 @@ local historicalEntryTemplate = {
     roundDuration = 0, -- Duration of the round in seconds
     timeAlive = 0, -- Time the player was alive in seconds
     timestamp = 0, -- When the round ended
-    position = 1 -- Final position in that round
+    position = 1, -- Final position in that round
+    hasWon = false, -- Whether this player won the race (first to finish)
+    hasFinished = false, -- Whether this player finished the race (completed track)
+    finishTime = 0 -- When the player finished (0 if not finished)
 }
 
 -- Initialize leaderboard data
@@ -146,12 +152,23 @@ function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfi
         M.state.currentRound[playerId] = entry
     end
     
-    -- Update basic infoa
+    -- Update basic info
     entry.name = playerState.name or ""
     local isAlive = not playerState.dead
     entry.isAlive = isAlive
     entry.resetsUsed = playerState.respawnedCount or 0
     entry.lastUpdate = currentTime
+    
+    -- Update winner/finish states
+    if playerState.hasWon ~= nil then
+        entry.hasWon = playerState.hasWon
+    end
+    if playerState.hasFinished ~= nil then
+        entry.hasFinished = playerState.hasFinished
+    end
+    if playerState.finishTime and playerState.finishTime > 0 then
+        entry.finishTime = playerState.finishTime
+    end
     
     -- Handle death time tracking
     if wasAlive and not isAlive and entry.deathTime == 0 then
@@ -214,13 +231,32 @@ function M.getCurrentRoundLeaderboard()
         table.insert(leaderboard, entry)
     end
     
-    -- Sort by best distance traveled (higher = better)
-    -- Dead players remain ranked by their best distance achieved before death
+    -- Sort by winner status, then finish status, then distance traveled
     table.sort(leaderboard, function(a, b)
+        -- Winner always ranks first
+        if a.hasWon and not b.hasWon then
+            return true
+        elseif not a.hasWon and b.hasWon then
+            return false
+        end
+        
+        -- If both or neither are winners, check finish status
+        if a.hasFinished and not b.hasFinished then
+            return true
+        elseif not a.hasFinished and b.hasFinished then
+            return false
+        end
+        
+        -- If both have same finish status, sort by distance traveled
         local distanceA = a.bestDistanceTraveled or 0
         local distanceB = b.bestDistanceTraveled or 0
         
-        -- Pure distance ranking - whoever went furthest is highest
+        -- If both finished, sort by finish time (earlier = better)
+        if a.hasFinished and b.hasFinished and a.finishTime > 0 and b.finishTime > 0 then
+            return a.finishTime < b.finishTime
+        end
+        
+        -- Otherwise sort by distance (higher = better)
         return distanceA > distanceB
     end)
     
@@ -254,6 +290,14 @@ function M.saveRoundResults(roundDuration, floodSpeed)
         historicalEntry.timeAlive = entry.timeAlive or 0
         historicalEntry.floodSpeed = floodSpeed or 0
         historicalEntry.timestamp = currentTime
+        historicalEntry.hasWon = entry.hasWon or false
+        historicalEntry.hasFinished = entry.hasFinished or false
+        -- Convert absolute finish time to duration (finish time - spawn time)
+        if entry.finishTime and entry.finishTime > 0 and entry.spawnTime and entry.spawnTime > 0 then
+            historicalEntry.finishTime = entry.finishTime - entry.spawnTime
+        else
+            historicalEntry.finishTime = 0
+        end
         
         -- Add to daily records
         table.insert(M.state.dailyRecords, historicalEntry)

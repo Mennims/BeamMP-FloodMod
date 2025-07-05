@@ -13,7 +13,11 @@ local playerTemplate = {
     respawnedCount = 0, -- Times the player has respawned
     totalVehicles = 0, -- Total vehicles the player has spawned, excluding unicycles
     vehiclePower = 0, -- Vehicle engine power in kW
-    announcedAsWinner = false -- Whether this player has been announced as a winner this round
+    announcedAsWinner = false, -- Whether this player has been announced as a winner this round
+    hasWon = false, -- Whether this player has won (first to finish)
+    hasFinished = false, -- Whether this player has finished the track (completed it)
+    finishTime = 0, -- When the player finished (0 if not finished)
+    roundComplete = false -- Whether this player's round is complete (won, finished, or died)
 }
 
 local vehicleTemplate = {
@@ -58,7 +62,8 @@ M.state = {
     floodStartQueued = false,
     players = {},
     clientStates = {}, -- Store client state updates here
-    roundStartTime = 0 -- Track when the current round started
+    roundStartTime = 0, -- Track when the current round started
+    hasWinner = false -- Track if someone has already won this round
 }
 
 local invalidCount = 0
@@ -323,13 +328,20 @@ local function resetVehiclesToStartPositions()
     
     for pid, playerState in pairs(M.state.players) do
         if #positions > 0 then
+            -- Validate player is still connected before processing
+            if not isValidPlayer(pid) then
+                print("Warning: Player " .. tostring(pid) .. " disconnected during vehicle reset, skipping")
+                goto continue
+            end
+            
             local randomIndex = math.random(1, #positions)
             local posIndex = positions[randomIndex]
             table.remove(positions, randomIndex)
 
+            -- Only update vehicle state if player is valid
             updatePlayerStateVehicle(pid)
 
-            if playerState.vehicle.config and playerState.vehicle.config.vid then
+            if playerState.vehicle and playerState.vehicle.config and playerState.vehicle.config.vid then
                 print("Entering vehicle " .. playerState.vehicle.config.vid)
                 C.enterVehicle(pid, playerState.vehicle.config.vid)
             end
@@ -339,6 +351,7 @@ local function resetVehiclesToStartPositions()
                 MP.TriggerClientEvent(pid, "E_ResetVehicleToPos", Util.JsonEncode(startPos))
             end
         end
+        ::continue::
     end
 end
 
@@ -360,6 +373,7 @@ local function ensureVehiclesAreAboveWaterLine()
             if playerState.status == "inGame" then
                 if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel - 4 and not playerState.dead then
                     playerState.dead = true
+                    playerState.roundComplete = true -- Mark as round complete when dying
                     print("Player " .. pid .. " is dead")
                     MP.hSendChatMessage(-1, "^4" .. MP.GetPlayerName(pid) .. " ^r^3^l^o died...")
                     someoneDied = true
@@ -400,93 +414,80 @@ local function getPlayerRankings()
     return rankings
 end
 
-local function stopFloodWhenPlayersDead()
-    local totalPlayers = 0
-    local playersRemaining = 0
-    local lastPlayerAlivePid = nil
-
-    for pid, playerState in pairs(M.state.players) do
-        if not playerState.dead and playerState.status == "inGame" then
-            playersRemaining = playersRemaining + 1
-            lastPlayerAlivePid = pid
-        end
-
-        if playerState.status == "inGame" then
-            totalPlayers = totalPlayers + 1
-        end
-    end
-
-    if not M.state.floodStartQueued then
-        if (playersRemaining == 1 and totalPlayers > 1) then
-            local lastPlayerAliveName = MP.GetPlayerName(lastPlayerAlivePid)
-            MP.hSendChatMessage(-1, "^6^o^l" .. lastPlayerAliveName .. " ^r^6^l^ois the last player alive, stopping flood in 10 seconds")
+local function handlePlayerFinishing(finishers)
+    if not finishers or #finishers == 0 then return end
+    
+    local currentTime = os.time()
+    
+    for _, finisher in ipairs(finishers) do
+        local playerState = getPlayerState(finisher.pid)
+        if playerState and not playerState.hasFinished then
+            playerState.hasFinished = true
+            playerState.finishTime = currentTime
+            playerState.roundComplete = true
             
-            -- Show rankings
-            -- local rankings = getPlayerRankings()
-            -- MP.hSendChatMessage(-1, "^7^lRankings")
-            -- for i, player in ipairs(rankings) do
-            --     local playerColour = "^f"
-
-            --     if i == 1 then
-            --         playerColour = "^6"
-            --     elseif i == 2 then
-            --         playerColour = "^2"
-            --     elseif i == 3 then
-            --         playerColour = "^3"
-            --     end
-
-            --     local status = player.dead and "^1DEAD" or "^2ALIVE"
-            --     MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
-            --                         math.floor(player.distanceTraveled) .. "m traveled " .. status)
-            --     if i >= 5 then break end -- Only show top 5
-            -- end
-
-            M.state.floodStartQueued = true
-            U.setTimeout(function()
-                -- Save round results before stopping
-                local roundDuration = os.time() - M.state.roundStartTime
-                L.saveRoundResults(roundDuration, M.options.floodSpeed)
+            -- First player to finish wins
+            if not M.state.hasWinner then
+                M.state.hasWinner = true
+                playerState.hasWon = true
+                MP.hSendChatMessage(-1, "^6^o^l" .. finisher.name .. " ^r^6^l^ohas WON the race!")
                 
-                M.commands["stop"]("")
-                startAutoStartCountdown()
-            end, 10000)
-            
-        elseif playersRemaining == 0 then
-            MP.hSendChatMessage(-1, "^6^oNo players remaining, stopping flood")
-            
-            -- Show rankings
-            -- local rankings = getPlayerRankings()
-            -- MP.hSendChatMessage(-1, "^7^lRankings")
-            -- for i, player in ipairs(rankings) do
-            --     local playerColour = "^f"
-
-            --     if i == 1 then
-            --         playerColour = "^6"
-            --     elseif i == 2 then
-            --         playerColour = "^2"
-            --     elseif i == 3 then
-            --         playerColour = "^3"
-            --     end
-
-            --     local status = player.dead and "^1DEAD" or "^2ALIVE"
-            --     MP.hSendChatMessage(-1, "^l^7#" .. i .. ": " .. playerColour .. player.name .. "^r^7- " .. 
-            --                         math.floor(player.distanceTraveled) .. "m traveled " .. status)
-            --     if i >= 5 then break end -- Only show top 5
-            -- end
-
-            M.state.floodStartQueued = true
-
-            -- Save round results before stopping
-            local roundDuration = os.time() - M.state.roundStartTime
-            L.saveRoundResults(roundDuration, M.options.floodSpeed)
-
-            U.setTimeout(function()
-                M.commands["stop"]("")
-                startAutoStartCountdown()
-            end, 2000)
+                -- Send winner event to client to stop their timer
+                MP.TriggerClientEvent(finisher.pid, "E_PlayerWon", tostring(currentTime))
+                MP.TriggerClientEvent(-1, "E_PlayerFinished", Util.JsonEncode({
+                    playerId = finisher.pid,
+                    name = finisher.name,
+                    isWinner = true,
+                    finishTime = currentTime
+                }))
+            else
+                -- Subsequent finishers
+                MP.hSendChatMessage(-1, "^2^o^l" .. finisher.name .. " ^r^2^l^ohas finished the race!")
+                
+                -- Send finish event to client to stop their timer
+                MP.TriggerClientEvent(finisher.pid, "E_PlayerFinished", Util.JsonEncode({
+                    playerId = finisher.pid,
+                    name = finisher.name,
+                    isWinner = false,
+                    finishTime = currentTime
+                }))
+            end
         end
     end
 end
+
+local function checkIfRoundShouldEnd()
+    if M.state.floodStartQueued then return end
+    
+    local totalPlayers = 0
+    local completedPlayers = 0
+    
+    for pid, playerState in pairs(M.state.players) do
+        if playerState.status == "inGame" then
+            totalPlayers = totalPlayers + 1
+            if playerState.roundComplete then
+                completedPlayers = completedPlayers + 1
+            end
+        end
+    end
+    
+    -- Only end round if all players have completed (won, finished, or died)
+    if totalPlayers > 0 and completedPlayers >= totalPlayers then
+        MP.hSendChatMessage(-1, "^6^oAll players have finished! Starting next round in 10 seconds...")
+        
+        M.state.floodStartQueued = true
+        U.setTimeout(function()
+            -- Save round results before stopping
+            local roundDuration = os.time() - M.state.roundStartTime
+            L.saveRoundResults(roundDuration, M.options.floodSpeed)
+            
+            M.commands["stop"]("")
+            startAutoStartCountdown()
+        end, 10000)
+    end
+end
+
+
 
 local function checkForNoVehicles()
     local vehiclesSpawned = false
@@ -548,10 +549,17 @@ local function prepareFlood()
     resetAutoStartCountdown()
     resetCountdown()
 
+    -- Reset winner state
+    M.state.hasWinner = false
+
     for pid, playerState in pairs(M.state.players) do
         setPlayerDead(pid, false)
         playerState.previouslyDead = false -- Reset death tracking for new round
         playerState.announcedAsWinner = false -- Reset winner announcement for new round
+        playerState.hasWon = false -- Reset win state
+        playerState.hasFinished = false -- Reset finish state
+        playerState.finishTime = 0 -- Reset finish time
+        playerState.roundComplete = false -- Reset round completion state
         if playerState.totalVehicles > 0 then
             setPlayerStatus(pid, "inGame")
         else
@@ -814,16 +822,16 @@ function T_Update()
         ::continue::
     end
     
-    -- Check for winners (players who reached the destination)
-    local winners = {}
+    -- Check for finishers (players who reached the destination)
+    local finishers = {}
     local currentRound = L.getCurrentRoundLeaderboard()
     local trackLength = M.mapConfig.totalDistance or 13099
     
     for _, entry in ipairs(currentRound) do
         if entry.bestDistanceTraveled >= trackLength and entry.isAlive then
             local playerState = getPlayerState(entry.playerId)
-            if playerState and playerState.status == "inGame" then
-                table.insert(winners, {
+            if playerState and playerState.status == "inGame" and not playerState.hasFinished then
+                table.insert(finishers, {
                     pid = entry.playerId,
                     name = entry.name,
                     distanceTraveled = entry.bestDistanceTraveled
@@ -832,20 +840,11 @@ function T_Update()
         end
     end
     
-    -- Announce new winners (only announce once per player)
-    if #winners > 0 then
-        for _, winner in ipairs(winners) do
-            local playerState = getPlayerState(winner.pid)
-            -- Check if we haven't announced this player as winner yet
-            if not playerState.announcedAsWinner then
-                MP.hSendChatMessage(-1, "^6^o^l" .. winner.name .. " ^r^6^l^ohas reached the destination and won!")
-                playerState.announcedAsWinner = true
-            end
-        end
-    end
+    -- Handle players finishing the race
+    handlePlayerFinishing(finishers)
     
-    -- Continue with normal flood logic - only stop when players are dead or no vehicles
-    stopFloodWhenPlayersDead()
+    -- Check if round should end (all players completed)
+    checkIfRoundShouldEnd()
     stopFloodWhenNoVehicles()
 end
 

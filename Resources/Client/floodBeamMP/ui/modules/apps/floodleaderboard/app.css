@@ -239,6 +239,43 @@
 	color: #ff6666;
 }
 
+.player-row.winner-player {
+	background: rgba(255, 215, 0, 0.15);
+	border-left-color: #ffd700;
+	box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.player-row.winner-player .player-name {
+	color: #ffd700;
+	font-weight: bold;
+}
+
+.player-row.winner-player .time-value {
+	color: #ffd700;
+	font-weight: bold;
+}
+
+.player-row.finished-player {
+	background: rgba(0, 255, 0, 0.1);
+	border-left-color: #00ff00;
+	box-shadow: 0 0 8px rgba(0, 255, 0, 0.2);
+}
+
+.player-row.finished-player .player-name {
+	color: #66ff66;
+	font-weight: bold;
+}
+
+.player-row.finished-player .time-value {
+	color: #66ff66;
+	font-weight: bold;
+}
+
+.player-status {
+	margin-left: 4px;
+	font-size: 1.1em;
+}
+
 /* Column styling for grid layout */
 .col-rank {
 	text-align: center;

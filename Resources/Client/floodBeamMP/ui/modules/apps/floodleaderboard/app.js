@@ -15,6 +15,9 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			$scope.roundStartTime = 0;
 			$scope.isRoundActive = false;
 			$scope.showTabsTemporarily = false;
+			$scope.playerFinishTimes = {}; // Track finish times for each player
+			$scope.hasWinner = false; // Track if someone has won
+			$scope.winnerName = ""; // Track winner name
 
 			// Memory leak prevention and performance optimization
 			let timerInterval = null;
@@ -167,6 +170,30 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				}
 			};
 
+			// Get the appropriate time for display (finish time if finished, otherwise time alive)
+			$scope.getDisplayTime = function(player) {
+				if (player.hasFinished && player.finishTime > 0) {
+					// Calculate finish time relative to round start
+					const finishDuration = player.finishTime - $scope.roundStartTime;
+					return $scope.formatTime(finishDuration);
+				} else {
+					// Use time alive for ongoing or dead players
+					return $scope.formatTime(player.timeAlive);
+				}
+			};
+
+			// Get the appropriate time for historical records
+			$scope.getHistoricalTime = function(record) {
+				if (record.hasFinished && record.finishTime > 0) {
+					// For finished players, the finishTime from server is already the duration
+					// (calculated as finishTime - roundStartTime on the server)
+					return $scope.formatTime(record.finishTime);
+				} else {
+					// For non-finishers, show time alive
+					return $scope.formatTime(record.timeAlive);
+				}
+			};
+
 			// Throttled update function to prevent excessive DOM updates
 			function throttledApply() {
 				const now = Date.now();
@@ -197,7 +224,10 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 							resetsUsed: entry.resetsUsed,
 							timeAlive: entry.timeAlive || 0,
 							isCurrentPlayer: false, // TODO: Determine current player
-							isAlive: entry.isAlive
+							isAlive: entry.isAlive,
+							hasWon: entry.hasWon || false,
+							hasFinished: entry.hasFinished || false,
+							finishTime: entry.finishTime || 0
 						}));
 						throttledApply(); // Use throttled apply for performance
 					}
@@ -227,7 +257,10 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						resetsUsed: entry.resetsUsed,
 						timeAlive: entry.timeAlive || 0,
 						isCurrentPlayer: false, // TODO: Determine current player
-						isAlive: entry.isAlive
+						isAlive: entry.isAlive,
+						hasWon: entry.hasWon || false,
+						hasFinished: entry.hasFinished || false,
+						finishTime: entry.finishTime || 0
 					}));
 				} else {
 					// No current round data, initialize empty array
@@ -242,6 +275,9 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						distance: Math.floor(record.finalDistanceTraveled || 0), // Distance traveled
 						power: record.enginePower,
 						timeAlive: record.timeAlive || 0,
+						finishTime: record.finishTime || 0,
+						hasWon: record.hasWon || false,
+						hasFinished: record.hasFinished || false,
 						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
 						floodSpeed: Math.round(record.floodSpeed * 100) / 100, // Round to 2 decimal places
 						maxDistance: Math.floor(record.trackLength),
@@ -262,6 +298,9 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						distance: Math.floor(record.finalDistanceTraveled || 0), // Distance traveled
 						power: record.enginePower,
 						timeAlive: record.timeAlive || 0,
+						finishTime: record.finishTime || 0,
+						hasWon: record.hasWon || false,
+						hasFinished: record.hasFinished || false,
 						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
 						floodSpeed: Math.round(record.floodSpeed * 100) / 100, // Round to 2 decimal places
 						maxDistance: Math.floor(record.trackLength),
@@ -581,6 +620,10 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				if (!isDestroyed) {
 					$scope.roundStartTime = startTime;
 					$scope.isRoundActive = true;
+					// Reset winner state for new round
+					$scope.hasWinner = false;
+					$scope.winnerName = "";
+					$scope.playerFinishTimes = {};
 				}
 			});
 			
@@ -590,6 +633,11 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				
 				$scope.isRoundActive = false;
 				// Timer will stop updating but keep showing final time
+				
+				// Reset winner state for next round
+				$scope.hasWinner = false;
+				$scope.winnerName = "";
+				$scope.playerFinishTimes = {};
 				
 				// Show tabs temporarily for 5 seconds when round ends
 				$scope.showTabsTemporarily = true;
@@ -607,6 +655,41 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						$scope.$apply();
 					}
 				}, 5000); // 5 seconds
+			});
+
+			// Listen for player won events
+			registerEventListener('PlayerWon', function(event, finishTime) {
+				if (isDestroyed) return;
+				
+				// Stop the timer for the winning player (current player)
+				console.log('[FloodLeaderboard] Player won at:', finishTime);
+				// The timer will be handled by the finish time in the leaderboard data
+			});
+
+			// Listen for player finished events
+			registerEventListener('PlayerFinished', function(event, finishData) {
+				if (isDestroyed) return;
+				
+				try {
+					const data = typeof finishData === 'string' ? JSON.parse(finishData) : finishData;
+					
+					if (data && data.playerId && data.finishTime) {
+						// Store finish time for this player
+						$scope.playerFinishTimes[data.playerId] = data.finishTime;
+						
+						if (data.isWinner) {
+							$scope.hasWinner = true;
+							$scope.winnerName = data.name;
+							console.log('[FloodLeaderboard] Winner:', data.name);
+						} else {
+							console.log('[FloodLeaderboard] Player finished:', data.name);
+						}
+						
+						$scope.$apply();
+					}
+				} catch (error) {
+					console.error('Error parsing player finish data:', error);
+				}
 			});
 			
 			// Listen for app suspension events (BeamMP pause menu)

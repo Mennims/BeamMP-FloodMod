@@ -395,6 +395,24 @@ AddEventHandler("E_SetFloodSpeed", function(speed)
     log("I", "floodBeamMP", "Flood speed updated to: " .. floodSpeed .. " m/s")
 end)
 
+AddEventHandler("E_PlayerWon", function(finishTimeStr)
+    local finishTime = tonumber(finishTimeStr) or os.time()
+    log("I", "floodBeamMP", "Player won at: " .. finishTime)
+    
+    -- Send win event to UI to stop timer
+    guihooks.trigger('PlayerWon', finishTime)
+end)
+
+AddEventHandler("E_PlayerFinished", function(finishDataJson)
+    local finishData = jsonDecode(finishDataJson)
+    if finishData then
+        log("I", "floodBeamMP", "Player finished: " .. (finishData.name or "Unknown"))
+        
+        -- Send finish event to UI
+        guihooks.trigger('PlayerFinished', finishData)
+    end
+end)
+
 -- Hooks
 
 function trackVehReset()
