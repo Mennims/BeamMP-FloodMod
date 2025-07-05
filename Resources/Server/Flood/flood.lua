@@ -83,6 +83,10 @@ local function setWaterLevel(level)
     MP.TriggerClientEvent(-1, "E_SetWaterLevel", tostring(level))
 end
 
+local function setFloodSpeed(speed)
+    MP.TriggerClientEvent(-1, "E_SetFloodSpeed", tostring(speed))
+end
+
 local function isFloodOrCountdownStarted()
     return M.options.enabled or M.countdown.started
 end
@@ -176,6 +180,9 @@ local function beginFlood()
     
     -- Notify clients that round has started
     MP.TriggerClientEvent(-1, "E_RoundStarted", tostring(M.state.roundStartTime))
+    
+    -- Sync flood speed to all players at round start
+    setFloodSpeed(M.options.floodSpeed)
 
     U.setTimeout(function()
         C.setDynamicCollisionEnabled(true)
@@ -553,6 +560,9 @@ local function prepareFlood()
     if M.mapConfig.destination and M.mapConfig.destination.pos then
         updateDestinationForClients(M.mapConfig.destination.pos)
     end
+    
+    -- Sync flood speed to all players before round starts
+    setFloodSpeed(M.options.floodSpeed)
 
     U.setTimeout(function()
         C.setVehicleFreeze(true)
@@ -601,6 +611,9 @@ function onPlayerJoin(pid)
         if M.options.rainVolume > 0.0 then
             MP.TriggerClientEvent(pid, "E_SetRainVolume", tostring(M.options.rainVolume))
         end
+        
+        -- Sync flood speed
+        MP.TriggerClientEvent(pid, "E_SetFloodSpeed", tostring(M.options.floodSpeed))
         updatePlayerState(pid)
         
         U.setTimeout(function()
@@ -761,9 +774,9 @@ function T_Update()
     updatePlayersStatesVehicles()
     ensureVehiclesAreAboveWaterLine()
     
-    -- Update leaderboard data (only for alive players)
+    -- Update leaderboard data (for alive players + one final update for newly dead players)
     for pid, playerState in pairs(M.state.players) do
-        if playerState and playerState.status == "inGame" and not playerState.dead then
+        if playerState and playerState.status == "inGame" then
             -- Validate player is still connected before updating leaderboard
             if not isValidPlayer(pid) then
                 print("Warning: Player " .. tostring(pid) .. " disconnected, removing from current round")
@@ -773,11 +786,28 @@ function T_Update()
                 goto continue
             end
             
-            -- Initialize client state if not exists
-            if not M.state.clientStates[pid] then
-                M.state.clientStates[pid] = {}
+            -- Check if we need to send an update for this player
+            local shouldUpdate = false
+            
+            if not playerState.dead then
+                -- Always update alive players
+                shouldUpdate = true
+            else
+                -- For dead players, only update if they just died (haven't been updated since death)
+                local currentRoundEntry = L.getCurrentRoundPlayerEntry(pid)
+                if currentRoundEntry and currentRoundEntry.isAlive then
+                    -- Player just died, send one final update
+                    shouldUpdate = true
+                end
             end
-            L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
+            
+            if shouldUpdate then
+                -- Initialize client state if not exists
+                if not M.state.clientStates[pid] then
+                    M.state.clientStates[pid] = {}
+                end
+                L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
+            end
         end
         ::continue::
     end
@@ -967,6 +997,7 @@ M.commands["speed"] = function(pid, speed)
     -- Do I limit the max? Hmmm, not sure 🤔
 
     M.options.floodSpeed = speed
+    setFloodSpeed(speed)
     MP.hSendChatMessage(pid, "Set flood speed to " .. speed .. " m/s")
 end
 

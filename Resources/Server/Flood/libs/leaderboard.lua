@@ -206,6 +206,11 @@ function M.removeCurrentRoundPlayer(playerId)
     M.state.currentRound[playerId] = nil
 end
 
+-- Get a specific player's current round entry (for checking death status changes)
+function M.getCurrentRoundPlayerEntry(playerId)
+    return M.state.currentRound[playerId]
+end
+
 -- Get current round leaderboard sorted by distance traveled
 function M.getCurrentRoundLeaderboard()
     local leaderboard = {}

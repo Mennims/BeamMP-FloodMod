@@ -88,7 +88,8 @@ M.state = {
   sendInterval = 250, -- ms between updates to server
   destinationPos = vec3(634.2406616, 3175.344971, 1227.2677), -- Default destination
   roundStartTime = 0, -- Track when current round started
-  vehiclePower = nil -- Track vehicle engine power
+  vehiclePower = nil, -- Track vehicle engine power
+  floodSpeed = 0 -- Track current flood speed in m/s
 }
 
 M.updateRoadDistance = function()
@@ -386,6 +387,12 @@ AddEventHandler("E_RoundEnded", function(endTimeStr)
     
     -- Send round end event to UI
     guihooks.trigger('RoundEnded', endTime)
+end)
+
+AddEventHandler("E_SetFloodSpeed", function(speed)
+    local floodSpeed = tonumber(speed) or 0
+    M.state.floodSpeed = floodSpeed
+    log("I", "floodBeamMP", "Flood speed updated to: " .. floodSpeed .. " m/s")
 end)
 
 -- Hooks

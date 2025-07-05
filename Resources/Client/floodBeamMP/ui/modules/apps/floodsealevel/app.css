@@ -27,7 +27,8 @@
     top: 17%;
     left: 50%;
     transform: translate(-50%, -50%);
-	z-index: -1
+	z-index: -1;
+	opacity: 40%;
 }
 
 .metrics-container {
@@ -41,6 +42,10 @@
 
 .sea-level-difference {
 	font-size: 1.2vw;
+}
+
+.flood-speed {
+	font-size: 1.0vw;
 }
 
 * {

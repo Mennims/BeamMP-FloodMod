@@ -36,6 +36,9 @@
 			<div class="sea-level-difference">
 				<span ng-if="seaLevel !== null">{{difference}}M</span>
 			</div>
+			<div class="flood-speed">
+				<span ng-if="floodSpeed !== null">{{floodSpeed}}m/s</span>
+			</div>
 		</div>
 		
 		<div class="sea" id="sea-container" ng-style="{'transform': 'translateY(' + seaPosition + 'px)'}">

@@ -243,7 +243,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						power: record.enginePower,
 						timeAlive: record.timeAlive || 0,
 						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
-						floodSpeed: record.floodSpeed,
+						floodSpeed: Math.round(record.floodSpeed * 100) / 100, // Round to 2 decimal places
 						maxDistance: Math.floor(record.trackLength),
 						progressPercent: record.progressPercent,
 						resetsUsed: record.resetsUsed,
@@ -263,7 +263,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						power: record.enginePower,
 						timeAlive: record.timeAlive || 0,
 						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
-						floodSpeed: record.floodSpeed,
+						floodSpeed: Math.round(record.floodSpeed * 100) / 100, // Round to 2 decimal places
 						maxDistance: Math.floor(record.trackLength),
 						progressPercent: record.progressPercent,
 						resetsUsed: record.resetsUsed,

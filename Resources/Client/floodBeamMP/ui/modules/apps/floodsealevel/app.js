@@ -83,15 +83,25 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 					return getWaterLevel(findObject("Ocean", "WaterPlane"))
 				end)()`;
 
+			const LuaFloodSpeed = `
+				(function()
+					if floodBeamMP and floodBeamMP.state and type(floodBeamMP.state.floodSpeed) == 'number' then
+						return floodBeamMP.state.floodSpeed
+					end
+					return 0
+				end)()`;
+
 			const appContainer = document.getElementById('app-container');
 			const seaContainer = document.getElementById('sea-container');
 			
 			let playerVehicleZ = 0;
 			let seaLevel = 0;
+			let floodSpeed = 0;
 
 			$scope.seaPosition = 0;
 			$scope.difference = 0;
 			$scope.seaLevel = 0;
+			$scope.floodSpeed = 0;
 
 			if (seaContainer) {
 				seaContainer.hidden = true;
@@ -185,6 +195,11 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 					if (isDestroyed) return;
 					seaLevel = seaLevelResult;
 				});
+				
+				bngApi.engineLua(LuaFloodSpeed, (floodSpeedResult) => {
+					if (isDestroyed) return;
+					floodSpeed = floodSpeedResult;
+				});
 
 				if (playerVehicleZ && seaLevel && seaContainer && appContainer) {
 					const maxMovement = appContainer.offsetHeight;
@@ -207,6 +222,7 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 					}
 
 					$scope.seaLevel = seaLevel;
+					$scope.floodSpeed = floodSpeed;
 
 					const multiplier = Math.pow(10, 1);
 					$scope.difference = Math.round((playerVehicleZ - seaLevel) * multiplier) / multiplier;
