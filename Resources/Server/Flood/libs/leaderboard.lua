@@ -168,7 +168,7 @@ function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfi
     end
     
     -- Update distance info
-    if clientState and clientState.roadDistance then
+    if clientState and type(clientState) == "table" and clientState.roadDistance then
         entry.currentDistanceToDestination = tonumber(clientState.roadDistance) or entry.currentDistanceToDestination
     end
     
@@ -188,8 +188,17 @@ function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfi
     end
     
     -- Update vehicle info
-    entry.vehicleName = M.getVehicleName(playerState.vehicle.config)
-    entry.enginePower = M.getEngineKW(playerState.vehiclePower)
+    if playerState.vehicle and playerState.vehicle.config then
+        entry.vehicleName = M.getVehicleName(playerState.vehicle.config)
+    else
+        entry.vehicleName = "Unknown"
+    end
+    
+    if playerState.vehiclePower then
+        entry.enginePower = M.getEngineKW(playerState.vehiclePower)
+    else
+        entry.enginePower = 0
+    end
 end
 
 -- Remove a player from current round leaderboard
@@ -473,10 +482,16 @@ end
 
 -- TODO: Implement these functions when vehicle data access is available
 function M.getVehicleName(vehicleConfig)
+    if not vehicleConfig or not vehicleConfig.jbm then
+        return "Unknown"
+    end
     return vehicleConfig.jbm
 end
 
 function M.getEngineKW(vehiclePowerHp)
+    if not vehiclePowerHp or type(vehiclePowerHp) ~= "number" then
+        return 0
+    end
     return math.floor(vehiclePowerHp * 0.7457 + 0.5)
 end
 

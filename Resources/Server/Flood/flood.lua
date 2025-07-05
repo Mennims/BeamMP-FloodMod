@@ -62,6 +62,18 @@ M.state = {
 
 local invalidCount = 0
 
+local function isValidPlayer(pid)
+    if not pid then return false end
+    
+    local players = MP.GetPlayers()
+    for validPid, _ in pairs(players) do
+        if validPid == pid then
+            return true
+        end
+    end
+    return false
+end
+
 local function setWaterLevel(level)
     if not M.isOceanValid then
         print("setWaterLevel: ocean is nil")
@@ -84,22 +96,56 @@ local function getPlayerState(pid)
 end
 
 local function updatePlayerStateVehicle(pid)
+    -- Check if player is still valid before making API calls
+    if not isValidPlayer(pid) then
+        print("Warning: Player " .. tostring(pid) .. " is no longer valid, skipping vehicle update")
+        return
+    end
+
     local playerVehicles = MP.GetPlayerVehicles(pid);
     local playerState = getPlayerState(pid);
     local totalVehicles = 0 -- Excluding unicycles
 
+    if not playerState then
+        print("Warning: playerState is nil for player " .. tostring(pid))
+        return
+    end
+
     if playerVehicles then
         for vehicleId, vehicleConfigRaw in pairs(playerVehicles) do
-            local start = string.find(vehicleConfigRaw, "{")
-            local formattedVehicleConfig = string.sub(vehicleConfigRaw, start, -1)
-            local vehicleConfig = Util.JsonDecode(formattedVehicleConfig)
+            if not vehicleConfigRaw or type(vehicleConfigRaw) ~= "string" then
+                print("Warning: invalid vehicleConfigRaw for player " .. tostring(pid) .. " vehicle " .. tostring(vehicleId))
+                goto continue
+            end
 
-            if vehicleConfig.jbm ~= "unicycle" then
+            local start = string.find(vehicleConfigRaw, "{")
+            if not start then
+                print("Warning: no JSON start found in vehicleConfigRaw for player " .. tostring(pid))
+                goto continue
+            end
+
+            local formattedVehicleConfig = string.sub(vehicleConfigRaw, start, -1)
+            
+            local success, vehicleConfig = pcall(Util.JsonDecode, formattedVehicleConfig)
+            if not success or not vehicleConfig then
+                print("Warning: failed to decode vehicle config for player " .. tostring(pid) .. ": " .. tostring(vehicleConfig))
+                goto continue
+            end
+
+            if vehicleConfig.jbm and vehicleConfig.jbm ~= "unicycle" then
                 totalVehicles = totalVehicles + 1
                 playerState.vehicle.config = vehicleConfig;
-                playerState.vehicle.positionRaw = MP.GetPositionRaw(pid, vehicleId)
+                -- Double-check player is still valid before getting position
+                if isValidPlayer(pid) then
+                    playerState.vehicle.positionRaw = MP.GetPositionRaw(pid, vehicleId)
+                else
+                    print("Warning: Player " .. tostring(pid) .. " disconnected during vehicle processing")
+                    return
+                end
                 break
             end
+
+            ::continue::
         end
     end
 
@@ -218,10 +264,21 @@ local function deletePlayerState(pid)
 end
 
 local function updatePlayerState(pid)
+    if not pid then
+        print("Warning: updatePlayerState called with nil pid")
+        return
+    end
+    
     createPlayerState(pid)
 
-    getPlayerState(pid).name = MP.GetPlayerName(pid);
-    getPlayerState(pid).id = pid;
+    local playerState = getPlayerState(pid)
+    if not playerState then
+        print("Warning: failed to create player state for " .. tostring(pid))
+        return
+    end
+
+    playerState.name = MP.GetPlayerName(pid) or "Unknown";
+    playerState.id = pid;
 
     updatePlayerStateVehicle(pid)
 end
@@ -282,7 +339,16 @@ local function ensureVehiclesAreAboveWaterLine()
     local playersRemaining = 0
     
     for pid, playerState in pairs(M.state.players) do
-        if playerState.vehicle.positionRaw then
+        -- Validate player is still connected before accessing their data
+        if not isValidPlayer(pid) then
+            print("Warning: Player " .. tostring(pid) .. " disconnected, removing from water check")
+            M.state.players[pid] = nil
+            M.state.clientStates[pid] = nil
+            L.removeCurrentRoundPlayer(pid)
+            goto continue
+        end
+        
+        if playerState.vehicle and playerState.vehicle.positionRaw and playerState.vehicle.positionRaw.pos then
             if playerState.status == "inGame" then
                 if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel - 4 and not playerState.dead then
                     playerState.dead = true
@@ -296,6 +362,7 @@ local function ensureVehiclesAreAboveWaterLine()
                 end
             end
         end
+        ::continue::
     end
 
     if someoneDied then
@@ -416,6 +483,15 @@ end
 local function checkForNoVehicles()
     local vehiclesSpawned = false
     for pid, playerState in pairs(M.state.players) do
+        -- Validate player before making API call
+        if not isValidPlayer(pid) then
+            print("Warning: Player " .. tostring(pid) .. " disconnected, removing from vehicle check")
+            M.state.players[pid] = nil
+            M.state.clientStates[pid] = nil
+            L.removeCurrentRoundPlayer(pid)
+            goto continue
+        end
+        
         local playerVehicles = MP.GetPlayerVehicles(pid);
         local playerState = getPlayerState(pid);
 
@@ -425,6 +501,7 @@ local function checkForNoVehicles()
                 break
             end
         end
+        ::continue::
     end
 
     return not vehiclesSpawned
@@ -488,51 +565,69 @@ end
 -- BeamMP events
 
 function onPlayerJoin(pid)
-    C.setUiLayout(pid, "flood v0.20")
-    C.spawnDefaultVehicle(pid)
-
-    U.setTimeout(function()
-        C.setUiLayout(pid, "flood v0.20")
-        welcomePlayer(pid)
-    end, 4000)
-
-    local success = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
-    if success then
-        print("Successfully sent \"E_OnPlayerLoaded\" to " .. pid)
-    else
-        print("Failed to send \"E_OnPlayerLoaded\" to " .. pid)
-    end
-    
-    if M.mapConfig.destination and M.mapConfig.destination.pos then
-        MP.TriggerClientEvent(pid, "E_SetDestinationPos", Util.JsonEncode(M.mapConfig.destination.pos))
-    end
-    
-    -- Sync rain & volume
-    if M.options.rainAmount > 0.0 then
-        MP.TriggerClientEvent(pid, "E_SetRainAmount", tostring(M.options.rainAmount))
-    end
-
-    if M.options.rainVolume == -1.0 or M.options.rainVolume > 0.0 then
-        MP.TriggerClientEvent(pid, "E_SetRainVolume", tostring(M.options.rainVolume))
-    end
-    updatePlayerState(pid)
-    
-    U.setTimeout(function()
-        -- Initialize player in leaderboard if round is active
-        if M.options.enabled and M.state.roundStartTime > 0 then
-            updatePlayerState(pid)
-            local playerState = getPlayerState(pid)
-            if playerState.totalVehicles > 0 then
-                setPlayerStatus(pid, "inGame")
-                L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
-            end
+    -- Add error handling wrapper
+    local success, err = pcall(function()
+        if not pid then
+            print("Error: onPlayerJoin called with nil pid")
+            return
         end
         
-        -- Send round start time if round is active
-        if M.state.roundStartTime > 0 then
-            MP.TriggerClientEvent(pid, "E_RoundStarted", tostring(M.state.roundStartTime))
+        print("Player " .. tostring(pid) .. " joining...")
+        
+        C.setUiLayout(pid, "flood v0.20")
+        C.spawnDefaultVehicle(pid)
+
+        U.setTimeout(function()
+            C.setUiLayout(pid, "flood v0.20")
+            welcomePlayer(pid)
+        end, 4000)
+
+        local eventSuccess = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
+        if eventSuccess then
+            print("Successfully sent \"E_OnPlayerLoaded\" to " .. pid)
+        else
+            print("Failed to send \"E_OnPlayerLoaded\" to " .. pid)
         end
-    end, 2000)
+        
+        if M.mapConfig and M.mapConfig.destination and M.mapConfig.destination.pos then
+            MP.TriggerClientEvent(pid, "E_SetDestinationPos", Util.JsonEncode(M.mapConfig.destination.pos))
+        end
+        
+        -- Sync rain & volume
+        if M.options.rainAmount > 0.0 then
+            MP.TriggerClientEvent(pid, "E_SetRainAmount", tostring(M.options.rainAmount))
+        end
+
+        if M.options.rainVolume > 0.0 then
+            MP.TriggerClientEvent(pid, "E_SetRainVolume", tostring(M.options.rainVolume))
+        end
+        updatePlayerState(pid)
+        
+        U.setTimeout(function()
+            -- Initialize player in leaderboard if round is active
+            if M.options.enabled and M.state.roundStartTime > 0 then
+                updatePlayerState(pid)
+                local playerState = getPlayerState(pid)
+                if playerState and playerState.totalVehicles > 0 then
+                    setPlayerStatus(pid, "inGame")
+                    -- Initialize client state if not exists
+                    if not M.state.clientStates[pid] then
+                        M.state.clientStates[pid] = {}
+                    end
+                    L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
+                end
+            end
+            
+            -- Send round start time if round is active
+            if M.state.roundStartTime > 0 then
+                MP.TriggerClientEvent(pid, "E_RoundStarted", tostring(M.state.roundStartTime))
+            end
+        end, 2000)
+    end)
+    
+    if not success then
+        print("Error in onPlayerJoin for player " .. tostring(pid) .. ": " .. tostring(err))
+    end
 end
 
 function onPlayerDisconnect(pid)
@@ -667,9 +762,23 @@ function T_Update()
     
     -- Update leaderboard data (only for alive players)
     for pid, playerState in pairs(M.state.players) do
-        if playerState.status == "inGame" and not playerState.dead then
+        if playerState and playerState.status == "inGame" and not playerState.dead then
+            -- Validate player is still connected before updating leaderboard
+            if not isValidPlayer(pid) then
+                print("Warning: Player " .. tostring(pid) .. " disconnected, removing from current round")
+                M.state.players[pid] = nil
+                M.state.clientStates[pid] = nil
+                L.removeCurrentRoundPlayer(pid)
+                goto continue
+            end
+            
+            -- Initialize client state if not exists
+            if not M.state.clientStates[pid] then
+                M.state.clientStates[pid] = {}
+            end
             L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
         end
+        ::continue::
     end
     
     -- Check for winners (players who reached the destination)
@@ -729,11 +838,15 @@ function E_OnInitialize(pid, waterLevel)
     end
 
     C.spawnDefaultVehicle(pid)
-    updatePlayerState(pid)
     
-    if MP.GetPlayerCount() >= 1 and not M.autoStartCountdown.started and not M.countdown.started and not M.options.enabled then
-        startAutoStartCountdown()
-    end
+    -- Add delay to ensure vehicle spawn is complete before updating player state
+    U.setTimeout(function()
+        updatePlayerState(pid)
+        
+        if MP.GetPlayerCount() >= 1 and not M.autoStartCountdown.started and not M.countdown.started and not M.options.enabled then
+            startAutoStartCountdown()
+        end
+    end, 2000)
 end
 
 M.commands["start"] = function(pid)
@@ -1017,8 +1130,9 @@ function E_RequestResetToRoad(pid, ...)
 end
 
 function E_ClientStateUpdate(pid, stateJson)
-    local clientState = Util.JsonDecode(stateJson)
-    if not clientState then
+    local success, clientState = pcall(Util.JsonDecode, stateJson)
+    if not success or not clientState or type(clientState) ~= "table" then
+        print("Warning: Invalid client state JSON from player " .. tostring(pid) .. ": " .. tostring(stateJson))
         return
     end
     
@@ -1026,7 +1140,7 @@ function E_ClientStateUpdate(pid, stateJson)
     
     -- Update player state with vehicle power if available
     local playerState = getPlayerState(pid)
-    if playerState and clientState.vehiclePower then
+    if playerState and clientState.vehiclePower and type(clientState.vehiclePower) == "number" then
         playerState.vehiclePower = clientState.vehiclePower
     end
     

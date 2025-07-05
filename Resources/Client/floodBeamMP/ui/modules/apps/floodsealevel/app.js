@@ -4,38 +4,60 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 		templateUrl: '/ui/modules/apps/floodsealevel/app.html',
 		replace: true,
 		link: function ($scope, element, attrs) {
+			// Cleanup tracking
+			let timeoutIds = [];
+			let isDestroyed = false;
+			
 			function loadScript(url) {
 				return new Promise((resolve, reject) => {
+					// Check if script already exists
+					const existingScript = document.querySelector(`script[src="${url}"]`);
+					if (existingScript) {
+						resolve();
+						return;
+					}
+					
 					const script = document.createElement('script');
 					script.src = url;
 					script.onload = resolve;
 					script.onerror = reject;
 					document.head.appendChild(script);
+					
+					// Track script for cleanup
+					script.setAttribute('data-flood-app', 'true');
 				});
 			}
 
 			async function loadAllScripts() {
+				if (isDestroyed) return;
+				
 				try {
 					await loadScript('/ui/modules/apps/floodsealevel/wave/js/Wave.js');
 
-					if (window.Wave) {
-						setTimeout(() => {
-							setTimeout(() => {
-								Wave.init();
+					if (window.Wave && !isDestroyed) {
+						const timeoutId = setTimeout(() => {
+							if (isDestroyed) return;
+							const innerTimeoutId = setTimeout(() => {
+								if (isDestroyed) return;
+								if (window.Wave && typeof window.Wave.init === 'function') {
+									Wave.init();
+								}
 							}, 250);
+							timeoutIds.push(innerTimeoutId);
 						});
-						
-						
+						timeoutIds.push(timeoutId);
 					}
-				} catch (error) {}
+				} catch (error) {
+					console.warn('Failed to load Wave.js:', error);
+				}
 			}
 
-			if (window.Wave) {
-				window.Wave = undefined;
-				loadAllScripts();
-			} else {
-				loadAllScripts();
+			// Clean up existing Wave instance if it exists
+			if (window.Wave && typeof window.Wave.destroy === 'function') {
+				window.Wave.destroy();
 			}
+			
+			loadAllScripts();
 
 			const LuaSeaLevel = `
 				(function()
@@ -71,7 +93,9 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 			$scope.difference = 0;
 			$scope.seaLevel = 0;
 
-			seaContainer.hidden = true;
+			if (seaContainer) {
+				seaContainer.hidden = true;
+			}
 
 			function copyToClipboard(text) {
 				let textarea = document.createElement("textarea");
@@ -94,54 +118,71 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 
 			$scope.showSocialsText = (text) => {
 				const socialsText = document.querySelector('.wave-app .socials-text');
-				socialsText.innerHTML = text;
-				socialsText.style.opacity = '1';
-				
-				setTimeout(() => {
-					socialsText.style.opacity = '0';
-				}, 2000);
+				if (socialsText) {
+					socialsText.innerHTML = text;
+					socialsText.style.opacity = '1';
+					
+					const timeoutId = setTimeout(() => {
+						if (isDestroyed || !socialsText) return;
+						socialsText.style.opacity = '0';
+					}, 2000);
+					timeoutIds.push(timeoutId);
+				}
 			}
 
 			function pulseSocials() {
+				if (isDestroyed) return;
+				
 				const discordElement = document.querySelector('.wave-app .socials-container .discord-container');
 				const patreonElement = document.querySelector('.wave-app .socials-container .patreon-container');
 				if (discordElement && patreonElement) {
 					patreonElement.classList.add('active');
-					setTimeout(() => {
+					const timeoutId1 = setTimeout(() => {
+						if (isDestroyed || !patreonElement) return;
 						patreonElement.classList.remove('active');
 					}, 1700);
+					timeoutIds.push(timeoutId1);
 					
-					setTimeout(() => {
+					const timeoutId2 = setTimeout(() => {
+						if (isDestroyed || !discordElement) return;
 						discordElement.classList.add('active');
-						setTimeout(() => {
+						const timeoutId3 = setTimeout(() => {
+							if (isDestroyed || !discordElement) return;
 							discordElement.classList.remove('active');
 						}, 1500);
-					}, 300);	
+						timeoutIds.push(timeoutId3);
+					}, 300);
+					timeoutIds.push(timeoutId2);
 				}
 			}
 
 			function schedulePulseSocials() {
-				const minInterval = 120000;
-				const maxInterval = 240000;
+				if (isDestroyed) return;
+				
+				const minInterval = 120000; // 2 minutes
+				const maxInterval = 240000; // 4 minutes
 				const randomInterval = Math.floor(Math.random() * (maxInterval - minInterval + 1)) + minInterval;
 				
-				setTimeout(() => {
+				const timeoutId = setTimeout(() => {
+					if (isDestroyed) return;
 					pulseSocials();
-					schedulePulseSocials();
+					schedulePulseSocials(); // Recursive call
 				}, randomInterval);
+				timeoutIds.push(timeoutId);
 			}
 
-			let pulseScheduled = false;
-			if (!pulseScheduled) {
-				schedulePulseSocials();
-				pulseScheduled = true;
-			}
+			// Start the pulse scheduling
+			schedulePulseSocials();
 
+			// Clean up existing listeners to prevent duplicates
 			$scope.$$listeners.streamsUpdate = [];
 
 			$scope.$on('streamsUpdate', function (event, streams) {
+				if (isDestroyed) return;
+				
 				playerVehicleZ = streams.sensors.position.z;
 				bngApi.engineLua(LuaSeaLevel, (seaLevelResult) => {
+					if (isDestroyed) return;
 					seaLevel = seaLevelResult;
 				});
 
@@ -172,11 +213,39 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 
 					$scope.difference = $scope.difference.toFixed(1)
 
-					if (seaContainer.hidden) {
+					if (seaContainer && seaContainer.hidden) {
 						seaContainer.hidden = false;
 					}
 				}
 			});
+
+			// Cleanup function
+			function cleanup() {
+				isDestroyed = true;
+				
+				// Clear all timeouts
+				timeoutIds.forEach(id => clearTimeout(id));
+				timeoutIds = [];
+				
+				// Clean up Wave instance
+				if (window.Wave && typeof window.Wave.destroy === 'function') {
+					window.Wave.destroy();
+				}
+				
+				// Remove any scripts added by this instance
+				const scripts = document.querySelectorAll('script[data-flood-app="true"]');
+				scripts.forEach(script => {
+					if (script.parentNode) {
+						script.parentNode.removeChild(script);
+					}
+				});
+			}
+
+			// Register cleanup on scope destroy
+			$scope.$on('$destroy', cleanup);
+			
+			// Also cleanup on element removal
+			element.on('$destroy', cleanup);
 		}
 	}
 }]);

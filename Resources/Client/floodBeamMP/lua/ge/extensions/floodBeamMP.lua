@@ -97,8 +97,19 @@ M.updateRoadDistance = function()
     end
 
     local distance = MH.getRoadDistanceRemaining(M.state.destinationPos)
-    M.state.roadDistance = distance
-    return distance
+    
+    -- Validate distance value
+    if distance and type(distance) == "number" and distance == distance and distance ~= math.huge and distance ~= -math.huge then
+        M.state.roadDistance = distance
+    else
+        -- Keep previous valid value or set to nil if invalid
+        if distance then
+            log("W", "updateRoadDistance", "Invalid distance value: " .. tostring(distance))
+        end
+        M.state.roadDistance = nil
+    end
+    
+    return M.state.roadDistance
 end
 
 M.getVehiclePower = function()
@@ -119,17 +130,44 @@ end
 
 -- Function to be called from vehicle Lua via queueGameEngineLua
 M.setVehiclePower = function(power)
-    if power and power > 0 then
+    -- Validate power value
+    if power and type(power) == "number" and power == power and power ~= math.huge and power ~= -math.huge and power > 0 then
         M.state.vehiclePower = power
+    else
+        if power then
+            log("W", "setVehiclePower", "Invalid power value: " .. tostring(power))
+        end
+        -- Keep previous valid value or set to nil if invalid
+        M.state.vehiclePower = nil
     end
 end
 
 M.sendStateToServer = function()
+    -- Validate values before sending
+    local roadDistance = M.state.roadDistance
+    local vehiclePower = M.state.vehiclePower
+    
+    -- Ensure values are valid numbers or nil
+    if roadDistance and (type(roadDistance) ~= "number" or roadDistance ~= roadDistance) then -- NaN check
+        roadDistance = nil
+    end
+    
+    if vehiclePower and (type(vehiclePower) ~= "number" or vehiclePower ~= vehiclePower) then -- NaN check
+        vehiclePower = nil
+    end
+    
     local stateToSend = {
-        roadDistance = M.state.roadDistance,
-        vehiclePower = M.state.vehiclePower
+        roadDistance = roadDistance,
+        vehiclePower = vehiclePower
     }
-    TriggerServerEvent("E_ClientStateUpdate", jsonEncode(stateToSend))
+    
+    -- Safely encode JSON
+    local success, jsonString = pcall(jsonEncode, stateToSend)
+    if success and jsonString then
+        TriggerServerEvent("E_ClientStateUpdate", jsonString)
+    else
+        log("W", "sendStateToServer", "Failed to encode state: " .. tostring(jsonString))
+    end
 end
 
 AddEventHandler("E_OnPlayerLoaded", function()
