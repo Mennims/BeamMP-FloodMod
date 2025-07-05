@@ -9,6 +9,7 @@ local playerTemplate = {
     vehicle = "",
     status = "spectating", -- Whether player is spectating or in game. spectating|inGame
     dead = false, -- Player is dead
+    previouslyDead = false, -- Previous death status (for tracking death status changes)
     respawnedCount = 0, -- Times the player has respawned
     totalVehicles = 0, -- Total vehicles the player has spawned, excluding unicycles
     vehiclePower = 0, -- Vehicle engine power in kW
@@ -549,6 +550,7 @@ local function prepareFlood()
 
     for pid, playerState in pairs(M.state.players) do
         setPlayerDead(pid, false)
+        playerState.previouslyDead = false -- Reset death tracking for new round
         playerState.announcedAsWinner = false -- Reset winner announcement for new round
         if playerState.totalVehicles > 0 then
             setPlayerStatus(pid, "inGame")
@@ -793,11 +795,11 @@ function T_Update()
                 -- Always update alive players
                 shouldUpdate = true
             else
-                -- For dead players, only update if they just died (haven't been updated since death)
-                local currentRoundEntry = L.getCurrentRoundPlayerEntry(pid)
-                if currentRoundEntry and currentRoundEntry.isAlive then
+                -- For dead players, only update if they just died (death status changed)
+                if not playerState.previouslyDead then
                     -- Player just died, send one final update
                     shouldUpdate = true
+                    playerState.previouslyDead = true -- Mark as previously dead to prevent further updates
                 end
             end
             

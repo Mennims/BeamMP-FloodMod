@@ -58,6 +58,8 @@ local function setVehicleRecoveryEnabled(enabled)
     else
         core_recoveryPrompt.deactivateAllButtons()
         core_recoveryPrompt.setActive(not enabled)
+        -- Override the default onResetGameplay function
+        core_recoveryPrompt.onResetGameplay = function(a) end
     end
 end
 
