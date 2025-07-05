@@ -26,7 +26,7 @@ M.mapConfig = Util.JsonDecode(io.open("Resources/Server/Flood/config/map.json"):
 
 M.options = {
     oceanLevel = M.mapConfig.floodOptions.oceanLevel,
-    floodSpeed = M.mapConfig.floodOptions.floodSpeed,
+    floodSpeed = M.mapConfig.floodOptions.floodSpeed, -- Now in meters per second
     limit = 0.0,
     limitEnabled = false,
     enabled = false,
@@ -714,7 +714,8 @@ function T_Update()
     if not M.isOceanValid or not M.options.enabled then return end
 
     local level = M.options.oceanLevel
-    local changeAmount = M.options.floodSpeed
+    -- Convert meters per second to meters per 25ms update (floodSpeed is in m/s)
+    local changeAmount = M.options.floodSpeed * 0.025
     local limit = M.options.limit
     local limitEnabled = M.options.limitEnabled
     local decrease = M.options.decrease
@@ -966,7 +967,7 @@ M.commands["speed"] = function(pid, speed)
     -- Do I limit the max? Hmmm, not sure 🤔
 
     M.options.floodSpeed = speed
-    MP.hSendChatMessage(pid, "Set flood speed to " .. speed)
+    MP.hSendChatMessage(pid, "Set flood speed to " .. speed .. " m/s")
 end
 
 M.commands["limit"] = function(pid, limit)

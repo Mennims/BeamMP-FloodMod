@@ -442,7 +442,7 @@ function M.calculateScore(entry, roundFloodSpeed)
     local maxTime = 900 -- 15 minutes reference time
     local timeScore = 1.0 - math.min(1.0, timeAlive / maxTime) -- Inverted: lower time = higher score
     
-    local floodSpeedMultiplier = math.max(0.5, math.min(2.0, floodSpeed / 0.055)) -- 0.5-2.0x based on flood speed
+    local floodSpeedMultiplier = math.max(0.5, math.min(2.0, floodSpeed / 2.2)) -- 0.5-2.0x based on flood speed (2.2 m/s reference)
     
     -- Weighted scoring formula
     -- Distance: 40% weight (primary factor)
@@ -462,7 +462,7 @@ function M.calculateScore(entry, roundFloodSpeed)
     end
 
     -- Prevent players from cheating the leaderboard by using a higher flood speed
-    if floodSpeed > 1 or distance <= 0 then
+    if floodSpeed > 40 or distance <= 0 then
         finalScore = 0
     end
 

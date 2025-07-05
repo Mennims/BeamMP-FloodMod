@@ -1,7 +1,7 @@
 {
     "floodOptions": {
         "oceanLevel": 85,
-        "floodSpeed": 0.058
+        "floodSpeed": 2.32
     },
     "respawnLimit": 10,
     "totalDistance": 13099,
