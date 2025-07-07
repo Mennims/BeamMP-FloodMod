@@ -173,9 +173,8 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			// Get the appropriate time for display (finish time if finished, otherwise time alive)
 			$scope.getDisplayTime = function(player) {
 				if (player.hasFinished && player.finishTime > 0) {
-					// Calculate finish time relative to round start
-					const finishDuration = player.finishTime - $scope.roundStartTime;
-					return $scope.formatTime(finishDuration);
+					// Finish time is already a duration (calculated server-side)
+					return $scope.formatTime(player.finishTime);
 				} else {
 					// Use time alive for ongoing or dead players
 					return $scope.formatTime(player.timeAlive);
@@ -184,13 +183,15 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 
 			// Get the appropriate time for historical records
 			$scope.getHistoricalTime = function(record) {
-				if (record.hasFinished && record.finishTime > 0) {
+				// For historical records, prioritize finish time if it exists and is greater than 0
+				// Otherwise fall back to time alive
+				if (record.finishTime && record.finishTime > 0) {
 					// For finished players, the finishTime from server is already the duration
 					// (calculated as finishTime - roundStartTime on the server)
 					return $scope.formatTime(record.finishTime);
 				} else {
-					// For non-finishers, show time alive
-					return $scope.formatTime(record.timeAlive);
+					// For non-finishers or when finish time is not available, show time alive
+					return $scope.formatTime(record.timeAlive || 0);
 				}
 			};
 
@@ -276,8 +277,6 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						power: record.enginePower,
 						timeAlive: record.timeAlive || 0,
 						finishTime: record.finishTime || 0,
-						hasWon: record.hasWon || false,
-						hasFinished: record.hasFinished || false,
 						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
 						floodSpeed: Math.round(record.floodSpeed * 100) / 100, // Round to 2 decimal places
 						maxDistance: Math.floor(record.trackLength),
@@ -299,8 +298,6 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						power: record.enginePower,
 						timeAlive: record.timeAlive || 0,
 						finishTime: record.finishTime || 0,
-						hasWon: record.hasWon || false,
-						hasFinished: record.hasFinished || false,
 						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
 						floodSpeed: Math.round(record.floodSpeed * 100) / 100, // Round to 2 decimal places
 						maxDistance: Math.floor(record.trackLength),

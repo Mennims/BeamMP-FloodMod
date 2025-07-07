@@ -166,8 +166,9 @@ function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfi
     if playerState.hasFinished ~= nil then
         entry.hasFinished = playerState.hasFinished
     end
-    if playerState.finishTime and playerState.finishTime > 0 then
-        entry.finishTime = playerState.finishTime
+    if playerState.finishTime and playerState.finishTime > 0 and entry.spawnTime and entry.spawnTime > 0 then
+        -- Convert absolute finish time to duration (finish time - spawn time)
+        entry.finishTime = playerState.finishTime - entry.spawnTime
     end
     
     -- Handle death time tracking
@@ -292,9 +293,9 @@ function M.saveRoundResults(roundDuration, floodSpeed)
         historicalEntry.timestamp = currentTime
         historicalEntry.hasWon = entry.hasWon or false
         historicalEntry.hasFinished = entry.hasFinished or false
-        -- Convert absolute finish time to duration (finish time - spawn time)
-        if entry.finishTime and entry.finishTime > 0 and entry.spawnTime and entry.spawnTime > 0 then
-            historicalEntry.finishTime = entry.finishTime - entry.spawnTime
+        -- Copy finish time (already a duration in current round entries)
+        if entry.finishTime and entry.finishTime > 0 then
+            historicalEntry.finishTime = entry.finishTime
         else
             historicalEntry.finishTime = 0
         end
@@ -354,12 +355,15 @@ function M.getDailyLeaderboard()
         return scoreA > scoreB
     end)
     
-    -- Update positions
+    -- Create copies with updated positions to avoid mutating original records
+    local rankedRecords = {}
     for i, record in ipairs(bestRecords) do
-        record.position = i
+        local rankedRecord = U.deepcopy(record)
+        rankedRecord.position = i
+        table.insert(rankedRecords, rankedRecord)
     end
     
-    return bestRecords
+    return rankedRecords
 end
 
 -- Get weekly leaderboard (best records from this week)
@@ -398,12 +402,15 @@ function M.getWeeklyLeaderboard()
         return scoreA > scoreB
     end)
     
-    -- Update positions
+    -- Create copies with updated positions to avoid mutating original records
+    local rankedRecords = {}
     for i, record in ipairs(bestRecords) do
-        record.position = i
+        local rankedRecord = U.deepcopy(record)
+        rankedRecord.position = i
+        table.insert(rankedRecords, rankedRecord)
     end
     
-    return bestRecords
+    return rankedRecords
 end
 
 -- Send full leaderboard updates to clients (all tabs)
@@ -474,9 +481,14 @@ end
 -- Takes into account distance, completion time, and flood speed
 function M.calculateScore(entry, roundFloodSpeed)
     local distance = entry.bestDistanceTraveled or entry.finalDistanceTraveled or 0
-    local timeAlive = entry.timeAlive or 0
     local trackLength = entry.trackLength or 13099
     local floodSpeed = entry.floodSpeed or roundFloodSpeed
+    
+    -- For finished players, use finish time; for others, use time alive
+    local timeForScoring = entry.timeAlive or 0
+    if entry.hasFinished and entry.finishTime and entry.finishTime > 0 then
+        timeForScoring = entry.finishTime
+    end
     
     -- Normalize values to 0-1 scale for fair weighting
     local distanceScore = math.min(1.0, distance / trackLength) -- 0-1 based on track completion
@@ -484,7 +496,7 @@ function M.calculateScore(entry, roundFloodSpeed)
     -- Time score: LOWER time = HIGHER score (faster completion is better)
     -- Inverted scoring: 1.0 for instant completion, decreasing as time increases
     local maxTime = 900 -- 15 minutes reference time
-    local timeScore = 1.0 - math.min(1.0, timeAlive / maxTime) -- Inverted: lower time = higher score
+    local timeScore = 1.0 - math.min(1.0, timeForScoring / maxTime) -- Inverted: lower time = higher score
     
     local floodSpeedMultiplier = math.max(0.5, math.min(2.0, floodSpeed / 2.2)) -- 0.5-2.0x based on flood speed (2.2 m/s reference)
     
@@ -501,7 +513,7 @@ function M.calculateScore(entry, roundFloodSpeed)
     end
     
     -- Penalty for early death (if died within first 30 seconds)
-    if timeAlive < 30 and distance < trackLength * 0.1 then -- Only penalize if they didn't get far
+    if timeForScoring < 30 and distance < trackLength * 0.1 then -- Only penalize if they didn't get far
         finalScore = finalScore * 0.8
     end
 
@@ -511,7 +523,7 @@ function M.calculateScore(entry, roundFloodSpeed)
     end
 
     -- Prevent players from cheating the leaderboard by teleporting to the end
-    if timeAlive < 240 and distance > trackLength * 0.7 then
+    if timeForScoring < 240 and distance > trackLength * 0.7 then
         finalScore = 0
     end
     

@@ -81,15 +81,14 @@
 						<div class="col-datetime">Date/Time</div>
 				</div>
 				
-					<div class="player-row" ng-repeat="record in dailyRecords track by $index" ng-class="{'winner-player': record.hasWon, 'finished-player': record.hasFinished && !record.hasWon}">
+					<div class="player-row" ng-repeat="record in dailyRecords track by $index" ng-class="{'winner-player': record.rank === 1}">
 						<div class="col-rank">
 							<span class="rank-number">{{record.rank}}</span>
 							<span class="rank-medal" ng-if="record.rank <= 3">{{getRankMedal(record.rank)}}</span>
 						</div>
 						<div class="col-player">
 							<span class="player-name" title="{{record.name}}">{{record.name}}</span>
-							<span class="player-status" ng-if="record.hasWon">👑</span>
-							<span class="player-status" ng-if="record.hasFinished && !record.hasWon">🏁</span>
+							<span class="player-status" ng-if="record.rank === 1">👑</span>
 						</div>
 						<div class="col-progress">
 							<div class="progress-bar">
@@ -98,8 +97,7 @@
 							<span class="progress-text" title="{{record.distance}}/{{record.maxDistance}}m traveled">{{record.distance}}/{{record.maxDistance}}m traveled</span>
 						</div>
 						<div class="col-time">
-							<span class="time-value" ng-if="record.hasFinished" title="Finish time: {{getHistoricalTime(record)}}">{{getHistoricalTime(record)}}</span>
-							<span class="time-value" ng-if="!record.hasFinished" title="Time alive: {{getHistoricalTime(record)}}">{{getHistoricalTime(record)}}</span>
+							<span class="time-value" title="Time: {{getHistoricalTime(record)}}">{{getHistoricalTime(record)}}</span>
 						</div>
 						<div class="col-flood-speed">
 							<span class="flood-speed-value" title="Flood speed: {{record.floodSpeed}}m/s">{{record.floodSpeed}}m/s</span>
@@ -137,15 +135,14 @@
 						<div class="col-datetime">Date/Time</div>
 				</div>
 				
-					<div class="player-row" ng-repeat="record in weeklyRecords track by $index" ng-class="{'winner-player': record.hasWon, 'finished-player': record.hasFinished && !record.hasWon}">
+					<div class="player-row" ng-repeat="record in weeklyRecords track by $index" ng-class="{'winner-player': record.rank === 1}">
 						<div class="col-rank">
 							<span class="rank-number">{{record.rank}}</span>
 							<span class="rank-medal" ng-if="record.rank <= 3">{{getRankMedal(record.rank)}}</span>
 						</div>
 						<div class="col-player">
 							<span class="player-name" title="{{record.name}}">{{record.name}}</span>
-							<span class="player-status" ng-if="record.hasWon">👑</span>
-							<span class="player-status" ng-if="record.hasFinished && !record.hasWon">🏁</span>
+							<span class="player-status" ng-if="record.rank === 1">👑</span>
 						</div>
 						<div class="col-progress">
 							<div class="progress-bar">
@@ -154,8 +151,7 @@
 							<span class="progress-text" title="{{record.distance}}/{{record.maxDistance}}m traveled">{{record.distance}}/{{record.maxDistance}}m traveled</span>
 						</div>
 						<div class="col-time">
-							<span class="time-value" ng-if="record.hasFinished" title="Finish time: {{getHistoricalTime(record)}}">{{getHistoricalTime(record)}}</span>
-							<span class="time-value" ng-if="!record.hasFinished" title="Time alive: {{getHistoricalTime(record)}}">{{getHistoricalTime(record)}}</span>
+							<span class="time-value" title="Time: {{getHistoricalTime(record)}}">{{getHistoricalTime(record)}}</span>
 						</div>
 						<div class="col-flood-speed">
 							<span class="flood-speed-value" title="Flood speed: {{record.floodSpeed}}m/s">{{record.floodSpeed}}m/s</span>
