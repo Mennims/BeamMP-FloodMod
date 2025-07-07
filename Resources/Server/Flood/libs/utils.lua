@@ -1,5 +1,9 @@
 local M = {}
 
+function M.getCurrentTimeMs()
+    return math.floor(os.time() * 1000) + (os.clock() % 1) * 1000
+end
+
 function deepcopy(orig)
     local orig_type = type(orig)
     local copy

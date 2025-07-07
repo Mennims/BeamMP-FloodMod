@@ -374,18 +374,18 @@ AddEventHandler("E_LeaderboardCurrentRoundUpdate", function(leaderboardData)
 end)
 
 AddEventHandler("E_RoundStarted", function(startTimeStr)
-    M.state.roundStartTime = tonumber(startTimeStr) or os.time()
+    M.state.roundStartTime = tonumber(startTimeStr)
     log("I", "floodBeamMP", "Round started at: " .. M.state.roundStartTime)
     
-    -- Send round start time to UI
+    -- Send round start time to UI (as milliseconds)
     guihooks.trigger('RoundStarted', M.state.roundStartTime)
 end)
 
 AddEventHandler("E_RoundEnded", function(endTimeStr)
-    local endTime = tonumber(endTimeStr) or os.time()
+    local endTime = tonumber(endTimeStr)
     log("I", "floodBeamMP", "Round ended at: " .. endTime)
     
-    -- Send round end event to UI
+    -- Send round end event to UI (as milliseconds)
     guihooks.trigger('RoundEnded', endTime)
 end)
 
@@ -396,10 +396,10 @@ AddEventHandler("E_SetFloodSpeed", function(speed)
 end)
 
 AddEventHandler("E_PlayerWon", function(finishTimeStr)
-    local finishTime = tonumber(finishTimeStr) or os.time()
+    local finishTime = tonumber(finishTimeStr)
     log("I", "floodBeamMP", "Player won at: " .. finishTime)
     
-    -- Send win event to UI to stop timer
+    -- Send win event to UI to stop timer (as milliseconds)
     guihooks.trigger('PlayerWon', finishTime)
 end)
 

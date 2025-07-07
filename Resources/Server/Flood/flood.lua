@@ -54,7 +54,7 @@ M.countdown = {
 
 M.autoStartCountdown = {
     started = false,
-    count = 30,
+    count = 45,
     currentCount = 0
 }
 
@@ -62,7 +62,7 @@ M.state = {
     floodStartQueued = false,
     players = {},
     clientStates = {}, -- Store client state updates here
-    roundStartTime = 0, -- Track when the current round started
+    roundStartTime = 0, -- Track when the current round started (countdown end time in milliseconds)
     hasWinner = false -- Track if someone has already won this round
 }
 
@@ -172,7 +172,6 @@ local function beginFlood()
     M.state.floodStartQueued = false
     M.options.enabled = true;
     M.countdown.currentCount = 0;
-    M.state.roundStartTime = os.time() -- Track round start time
 
     MP.CreateEventTimer("ET_Update", 25)
     
@@ -184,20 +183,15 @@ local function beginFlood()
     -- Clear previous round leaderboard data
     L.clearCurrentRound()
     
-    -- Notify clients that round has started
+    M.state.roundStartTime = U.getCurrentTimeMs()
+
+    -- Notify clients that round has started (send as string to preserve precision)
     MP.TriggerClientEvent(-1, "E_RoundStarted", tostring(M.state.roundStartTime))
     
     -- Sync flood speed to all players at round start
     setFloodSpeed(M.options.floodSpeed)
 
-    U.setTimeout(function()
-        C.setDynamicCollisionEnabled(true)
-    end, 3000)
-    -- for pid, playerState in pairs(M.state.players) do
-    --     updatePlayerStateVehicle(pid)
-    --     if getPlayerState(pid).vehicle.config and getPlayerState(pid).vehicle.config.vid then
-    --     end
-    -- end
+    C.setDynamicCollisionEnabled(true)
 end
 
 local function startCountdown()
@@ -234,7 +228,8 @@ local function startAutoStartCountdown()
 
     M.autoStartCountdown.started = true;
     U.setTimeout(function()
-        MP.hSendChatMessage(-1, "Join Discord!!! Click the Discord icon in the Sea Level meter and paste the URL in a browser.")
+        MP.hSendChatMessage(-1, "Join Discord! Click the Discord icon in the Sea Level meter and paste the URL in a browser.")
+        MP.hSendChatMessage(-1, "If you get disconnected please reconnect immediately. The server periodically restarts.")
     end, 5000)
 
     MP.CreateEventTimer("ET_AutoStartCountdown", 1000)
@@ -338,7 +333,6 @@ local function resetVehiclesToStartPositions()
             local posIndex = positions[randomIndex]
             table.remove(positions, randomIndex)
 
-            -- Only update vehicle state if player is valid
             updatePlayerStateVehicle(pid)
 
             if playerState.vehicle and playerState.vehicle.config and playerState.vehicle.config.vid then
@@ -374,6 +368,8 @@ local function ensureVehiclesAreAboveWaterLine()
                 if playerState.vehicle.positionRaw.pos[3] < M.options.oceanLevel - 4 and not playerState.dead then
                     playerState.dead = true
                     playerState.roundComplete = true -- Mark as round complete when dying
+                    -- Record death time with millisecond precision
+                    playerState.deathTime = U.getCurrentTimeMs()
                     print("Player " .. pid .. " is dead")
                     MP.hSendChatMessage(-1, "^4" .. MP.GetPlayerName(pid) .. " ^r^3^l^o died...")
                     someoneDied = true
@@ -417,7 +413,8 @@ end
 local function handlePlayerFinishing(finishers)
     if not finishers or #finishers == 0 then return end
     
-    local currentTime = os.time()
+    -- Get current time with millisecond precision
+    local currentTime = U.getCurrentTimeMs()
     
     for _, finisher in ipairs(finishers) do
         local playerState = getPlayerState(finisher.pid)
@@ -477,8 +474,9 @@ local function checkIfRoundShouldEnd()
         
         M.state.floodStartQueued = true
         U.setTimeout(function()
-            -- Save round results before stopping
-            local roundDuration = os.time() - M.state.roundStartTime
+            -- Save round results before stopping (calculate duration in milliseconds)
+            local currentTime = U.getCurrentTimeMs()
+            local roundDuration = currentTime - M.state.roundStartTime
             L.saveRoundResults(roundDuration, M.options.floodSpeed)
             
             M.commands["stop"]("")
@@ -553,6 +551,9 @@ local function prepareFlood()
     M.state.hasWinner = false
 
     for pid, playerState in pairs(M.state.players) do
+        -- Update player vehicle count before round starts
+        updatePlayerStateVehicle(pid)
+        
         setPlayerDead(pid, false)
         playerState.previouslyDead = false -- Reset death tracking for new round
         playerState.announcedAsWinner = false -- Reset winner announcement for new round
@@ -562,8 +563,11 @@ local function prepareFlood()
         playerState.roundComplete = false -- Reset round completion state
         if playerState.totalVehicles > 0 then
             setPlayerStatus(pid, "inGame")
+            print("Player " .. tostring(pid) .. " (" .. (playerState.name or "Unknown") .. ") set to inGame with " .. playerState.totalVehicles .. " vehicles")
         else
             setPlayerStatus(pid, "spectating")
+            print("Player " .. tostring(pid) .. " (" .. (playerState.name or "Unknown") .. ") set to spectating - no vehicles")
+            MP.hSendChatMessage(pid, "^3You are spectating this round because you don't have a vehicle. Spawn a vehicle to participate in the next round!")
         end
     end
 
@@ -579,7 +583,7 @@ local function prepareFlood()
         C.setVehicleRecoveryEnabled(false)
         resetVehiclesToStartPositions()
         U.setTimeout(startCountdown, 1000)
-    end, 250)
+    end, 500)
 end
 
 -- BeamMP events
@@ -627,21 +631,23 @@ function onPlayerJoin(pid)
         updatePlayerState(pid)
         
         U.setTimeout(function()
-            -- Initialize player in leaderboard if round is active
+            -- Update player state but do not add to leaderboard if round is active
+            updatePlayerState(pid)
+            local playerState = getPlayerState(pid)
+            
             if M.options.enabled and M.state.roundStartTime > 0 then
-                updatePlayerState(pid)
-                local playerState = getPlayerState(pid)
+                -- Round is active - set player as spectating (they can watch but not compete)
+                if playerState then
+                    setPlayerStatus(pid, "spectating")
+                end
+            else
+                -- No active round - player can be set to inGame if they have vehicles
                 if playerState and playerState.totalVehicles > 0 then
                     setPlayerStatus(pid, "inGame")
-                    -- Initialize client state if not exists
-                    if not M.state.clientStates[pid] then
-                        M.state.clientStates[pid] = {}
-                    end
-                    L.updateCurrentRoundPlayer(pid, playerState, M.state.clientStates[pid], M.mapConfig, M.state.roundStartTime)
                 end
             end
             
-            -- Send round start time if round is active
+            -- Send round start time if round is active (for UI timer display)
             if M.state.roundStartTime > 0 then
                 MP.TriggerClientEvent(pid, "E_RoundStarted", tostring(M.state.roundStartTime))
             end
@@ -914,8 +920,9 @@ M.commands["stop"] = function(pid)
     resetCountdown();
     C.setDynamicCollisionEnabled(false)
     
-    -- Notify clients that round has ended
-    MP.TriggerClientEvent(-1, "E_RoundEnded", tostring(os.time()))
+    -- Notify clients that round has ended (with millisecond precision)
+    local currentTime = U.getCurrentTimeMs()
+    MP.TriggerClientEvent(-1, "E_RoundEnded", tostring(currentTime))
 
     U.setTimeout(function()
         C.setVehicleRecoveryEnabled(true)
@@ -1194,7 +1201,6 @@ MP.RegisterEvent("ET_Countdown", "T_Countdown")
 MP.RegisterEvent("ET_AutoStartCountdown", "T_AutoStartCountdown")
 MP.RegisterEvent("ET_LeaderboardFull", "T_LeaderboardFull")
 MP.RegisterEvent("ET_LeaderboardCurrentRound", "T_LeaderboardCurrentRound")
-MP.CreateEventTimer("ET_Update", 25)
 
 -- Server events
 MP.RegisterEvent("E_RequestResetToRoad", "E_RequestResetToRoad")
@@ -1239,6 +1245,19 @@ M.commands["leaderboard_debug"] = function(pid)
         for i = 1, math.min(3, #currentRound) do
             local entry = currentRound[i]
             MP.hSendChatMessage(pid, "^7  " .. i .. ". " .. entry.name .. " - " .. math.floor(entry.distanceTraveled or 0) .. "m traveled")
+        end
+    end
+end
+
+-- Add command to migrate leaderboard data to milliseconds
+M.commands["migrate_milliseconds"] = function(pid)
+    if pid then
+        MP.hSendChatMessage(pid, "^5Migrating leaderboard data to millisecond precision...")
+        local success = L.migrateToMilliseconds()
+        if success then
+            MP.hSendChatMessage(pid, "^2Migration completed successfully!")
+        else
+            MP.hSendChatMessage(pid, "^7No data needed migration.")
         end
     end
 end

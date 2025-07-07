@@ -154,29 +154,32 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				}
 			};
 
-			$scope.formatTime = function(seconds) {
-				if (!seconds || seconds <= 0) return "0:00";
+			$scope.formatTime = function(timeValue) {
+				if (!timeValue || timeValue <= 0) return "0:00.000";
 				
-				const totalSeconds = Math.floor(seconds);
+				// Time value is always in milliseconds
+				const totalMs = Math.floor(timeValue);
+				const milliseconds = totalMs % 1000;
+				const totalSeconds = Math.floor(totalMs / 1000);
 				const minutes = Math.floor(totalSeconds / 60);
 				const remainingSeconds = totalSeconds % 60;
 				
 				if (minutes >= 60) {
 					const hours = Math.floor(minutes / 60);
 					const remainingMinutes = minutes % 60;
-					return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+					return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
 				} else {
-					return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+					return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
 				}
 			};
 
 			// Get the appropriate time for display (finish time if finished, otherwise time alive)
 			$scope.getDisplayTime = function(player) {
 				if (player.hasFinished && player.finishTime > 0) {
-					// Finish time is already a duration (calculated server-side)
+					// Finish time is already a duration (calculated server-side in milliseconds)
 					return $scope.formatTime(player.finishTime);
 				} else {
-					// Use time alive for ongoing or dead players
+					// Use time alive for ongoing or dead players (in milliseconds)
 					return $scope.formatTime(player.timeAlive);
 				}
 			};
@@ -186,11 +189,10 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 				// For historical records, prioritize finish time if it exists and is greater than 0
 				// Otherwise fall back to time alive
 				if (record.finishTime && record.finishTime > 0) {
-					// For finished players, the finishTime from server is already the duration
-					// (calculated as finishTime - roundStartTime on the server)
+					// For finished players, the finishTime from server is already the duration in milliseconds
 					return $scope.formatTime(record.finishTime);
 				} else {
-					// For non-finishers or when finish time is not available, show time alive
+					// For non-finishers or when finish time is not available, show time alive in milliseconds
 					return $scope.formatTime(record.timeAlive || 0);
 				}
 			};
@@ -543,25 +545,28 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 			// END DUMMY DATA - REMOVE ABOVE WHEN DONE
 			// ========================================
 
-			// Initialize round timer with suspension awareness
+			// Initialize round timer with suspension awareness and millisecond precision
 			function updateRoundTimer() {
 				if (isDestroyed || isAppSuspended) return; // Don't update when suspended
 				
 				if ($scope.roundStartTime > 0 && $scope.isRoundActive) {
-					const elapsed = Math.floor((Date.now() / 1000) - $scope.roundStartTime);
-				const minutes = Math.floor(elapsed / 60);
-				const seconds = elapsed % 60;
-				$scope.roundTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+					// Calculate elapsed time in milliseconds
+					const currentTime = Date.now();
+					const startTime = parseFloat($scope.roundStartTime); // Handle both seconds and milliseconds
+					const elapsed = currentTime - startTime;
+					
+					// Format with millisecond precision like racing games
+					$scope.roundTime = $scope.formatTime(elapsed);
 				} else if (!$scope.isRoundActive && $scope.roundStartTime > 0) {
 					// Round has ended, keep the final time
 					// Timer stops updating but shows final time
 				} else {
-					$scope.roundTime = "00:00";
+					$scope.roundTime = "0:00.000";
 				}
 			}
 
-			// Start the timer with safe interval management
-			timerInterval = safeSetInterval(updateRoundTimer, 1000);
+			// Start the timer with higher frequency for millisecond updates
+			timerInterval = safeSetInterval(updateRoundTimer, 100); // Update every 100ms for smoother display
 
 			// Initialize empty data - server will populate it
 			initializeEmptyData();

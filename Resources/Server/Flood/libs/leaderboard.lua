@@ -29,9 +29,9 @@ local currentRoundEntryTemplate = {
     resetsUsed = 0,
     position = 1, -- Current leaderboard position
     isAlive = true,
-    timeAlive = 0, -- Time alive in seconds
-    spawnTime = 0, -- When the player spawned/started this round
-    deathTime = 0, -- When the player died (0 if still alive)
+    timeAlive = 0, -- Time alive in milliseconds
+    spawnTime = 0, -- When the player spawned/started this round (in milliseconds)
+    deathTime = 0, -- When the player died (0 if still alive, in milliseconds)
     lastUpdate = 0, -- Timestamp of last update
     hasWon = false, -- Whether this player won the race (first to finish)
     hasFinished = false, -- Whether this player finished the race (completed track)
@@ -48,8 +48,8 @@ local historicalEntryTemplate = {
     progressPercent = 0,
     resetsUsed = 0,
     floodSpeed = 0,
-    roundDuration = 0, -- Duration of the round in seconds
-    timeAlive = 0, -- Time the player was alive in seconds
+    roundDuration = 0, -- Duration of the round in milliseconds
+    timeAlive = 0, -- Time the player was alive in milliseconds
     timestamp = 0, -- When the round ended
     position = 1, -- Final position in that round
     hasWon = false, -- Whether this player won the race (first to finish)
@@ -108,9 +108,9 @@ end
 
 -- Clean old records (remove records older than specified days)
 local function cleanOldRecords()
-    local currentTime = os.time()
-    local dailyThreshold = currentTime - (24 * 60 * 60) -- 24 hours
-    local weeklyThreshold = currentTime - (7 * 24 * 60 * 60) -- 7 days
+    local currentTime = U.getCurrentTimeMs()
+    local dailyThreshold = currentTime - (24 * 60 * 60 * 1000) -- 24 hours in milliseconds
+    local weeklyThreshold = currentTime - (7 * 24 * 60 * 60 * 1000) -- 7 days in milliseconds
     
     -- Clean daily records
     local newDailyRecords = {}
@@ -131,16 +131,30 @@ local function cleanOldRecords()
     M.state.weeklyRecords = newWeeklyRecords
 end
 
+-- Compare two records for sorting (score-based ranking)
+local function compareRecords(a, b)
+    local scoreA = M.calculateScore(a)
+    local scoreB = M.calculateScore(b)
+    
+    -- If scores are truly identical, use timestamp as tiebreaker (earlier record wins)
+    if scoreA == scoreB then
+        return (a.timestamp or 0) < (b.timestamp or 0)
+    end
+    
+    return scoreA > scoreB
+end
+
 -- Get track length from map config
 local function getTrackLength(mapConfig)
-    return mapConfig.totalDistance or 13098 -- Default fallback track length
+    return mapConfig.totalDistance or 13099 -- Default fallback track length
 end
 
 -- Add or update a player in the current round leaderboard
 function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfig, roundStartTime)
     if not playerId or not playerState then return end
     
-    local currentTime = os.time()
+    -- Get current time with millisecond precision
+    local currentTime = U.getCurrentTimeMs()
     local entry = M.state.currentRound[playerId]
     local wasAlive = entry and entry.isAlive
     
@@ -171,12 +185,12 @@ function M.updateCurrentRoundPlayer(playerId, playerState, clientState, mapConfi
         entry.finishTime = playerState.finishTime - entry.spawnTime
     end
     
-    -- Handle death time tracking
+    -- Handle death time tracking with millisecond precision
     if wasAlive and not isAlive and entry.deathTime == 0 then
-        entry.deathTime = currentTime
+        entry.deathTime = playerState.deathTime or currentTime
     end
     
-    -- Calculate time alive
+    -- Calculate time alive in milliseconds
     if isAlive then
         entry.timeAlive = currentTime - entry.spawnTime
     else
@@ -272,7 +286,8 @@ end
 -- Save current round results to daily/weekly records
 function M.saveRoundResults(roundDuration, floodSpeed)
     local leaderboard = M.getCurrentRoundLeaderboard()
-    local currentTime = os.time()
+    -- Use millisecond precision for timestamp
+    local currentTime = U.getCurrentTimeMs()
     
     for _, entry in ipairs(leaderboard) do
         local historicalEntry = U.deepcopy(historicalEntryTemplate)
@@ -308,7 +323,7 @@ function M.saveRoundResults(roundDuration, floodSpeed)
     end
     
     -- Clean old records
-    cleanOldRecords()
+    -- cleanOldRecords()
     
     -- Save to file
     M.saveLeaderboardData()
@@ -343,17 +358,7 @@ function M.getDailyLeaderboard()
         table.insert(bestRecords, record)
     end
     
-    table.sort(bestRecords, function(a, b)
-        local scoreA = M.calculateScore(a)
-        local scoreB = M.calculateScore(b)
-        
-        -- If scores are very close, use distance as tiebreaker
-        if math.abs(scoreA - scoreB) < 0.01 then
-            return (a.finalDistanceTraveled or 0) > (b.finalDistanceTraveled or 0)
-        end
-        
-        return scoreA > scoreB
-    end)
+    table.sort(bestRecords, compareRecords)
     
     -- Create copies with updated positions to avoid mutating original records
     local rankedRecords = {}
@@ -390,17 +395,7 @@ function M.getWeeklyLeaderboard()
         table.insert(bestRecords, record)
     end
     
-    table.sort(bestRecords, function(a, b)
-        local scoreA = M.calculateScore(a)
-        local scoreB = M.calculateScore(b)
-        
-        -- If scores are very close, use distance as tiebreaker
-        if math.abs(scoreA - scoreB) < 0.01 then
-            return (a.finalDistanceTraveled or 0) > (b.finalDistanceTraveled or 0)
-        end
-        
-        return scoreA > scoreB
-    end)
+    table.sort(bestRecords, compareRecords)
     
     -- Create copies with updated positions to avoid mutating original records
     local rankedRecords = {}
@@ -415,7 +410,7 @@ end
 
 -- Send full leaderboard updates to clients (all tabs)
 function M.sendFullLeaderboardUpdate(targetPlayerId)
-    local currentTime = os.time()
+    local currentTime = U.getCurrentTimeMs()
     
     local data = {
         currentRound = M.getCurrentRoundLeaderboard(),
@@ -490,13 +485,16 @@ function M.calculateScore(entry, roundFloodSpeed)
         timeForScoring = entry.finishTime
     end
     
+    -- Convert milliseconds to seconds for scoring calculations
+    local timeForScoringSeconds = timeForScoring / 1000
+    
     -- Normalize values to 0-1 scale for fair weighting
     local distanceScore = math.min(1.0, distance / trackLength) -- 0-1 based on track completion
     
     -- Time score: LOWER time = HIGHER score (faster completion is better)
     -- Inverted scoring: 1.0 for instant completion, decreasing as time increases
-    local maxTime = 900 -- 15 minutes reference time
-    local timeScore = 1.0 - math.min(1.0, timeForScoring / maxTime) -- Inverted: lower time = higher score
+    local maxTime = 900 -- 15 minutes reference time in seconds
+    local timeScore = 1.0 - math.min(1.0, timeForScoringSeconds / maxTime) -- Inverted: lower time = higher score
     
     local floodSpeedMultiplier = math.max(0.5, math.min(2.0, floodSpeed / 2.2)) -- 0.5-2.0x based on flood speed (2.2 m/s reference)
     
@@ -513,7 +511,7 @@ function M.calculateScore(entry, roundFloodSpeed)
     end
     
     -- Penalty for early death (if died within first 30 seconds)
-    if timeForScoring < 30 and distance < trackLength * 0.1 then -- Only penalize if they didn't get far
+    if timeForScoringSeconds < 30 and distance < trackLength * 0.1 then -- Only penalize if they didn't get far
         finalScore = finalScore * 0.8
     end
 
@@ -523,16 +521,62 @@ function M.calculateScore(entry, roundFloodSpeed)
     end
 
     -- Prevent players from cheating the leaderboard by teleporting to the end
-    if timeForScoring < 240 and distance > trackLength * 0.7 then
+    if timeForScoringSeconds < 240 and distance > trackLength * 0.7 then
         finalScore = 0
     end
     
     return finalScore
 end
 
+-- Migrate old data from seconds to milliseconds
+function M.migrateToMilliseconds()
+    local migrationCount = 0
+    
+    -- Migrate daily records
+    for _, record in ipairs(M.state.dailyRecords) do
+        -- Check if record needs migration (values under 1000000 are likely in seconds)
+        if record.timeAlive and record.timeAlive < 1000000 then
+            record.timeAlive = record.timeAlive * 1000
+            migrationCount = migrationCount + 1
+        end
+        if record.finishTime and record.finishTime < 1000000 and record.finishTime > 0 then
+            record.finishTime = record.finishTime * 1000
+        end
+        if record.roundDuration and record.roundDuration < 1000000 then
+            record.roundDuration = record.roundDuration * 1000
+        end
+        -- Timestamps should remain as they are (already in milliseconds from os.time() * 1000)
+    end
+    
+    -- Migrate weekly records
+    for _, record in ipairs(M.state.weeklyRecords) do
+        -- Check if record needs migration (values under 1000000 are likely in seconds)
+        if record.timeAlive and record.timeAlive < 1000000 then
+            record.timeAlive = record.timeAlive * 1000
+            migrationCount = migrationCount + 1
+        end
+        if record.finishTime and record.finishTime < 1000000 and record.finishTime > 0 then
+            record.finishTime = record.finishTime * 1000
+        end
+        if record.roundDuration and record.roundDuration < 1000000 then
+            record.roundDuration = record.roundDuration * 1000
+        end
+    end
+    
+    if migrationCount > 0 then
+        print("Migrated " .. migrationCount .. " records from seconds to milliseconds")
+        M.saveLeaderboardData()
+        return true
+    else
+        print("No records needed migration to milliseconds")
+        return false
+    end
+end
+
 -- Initialize the leaderboard system
 function M.initialize()
     initializeLeaderboardData()
+    -- M.migrateToMilliseconds()
     print("Leaderboard system initialized")
 end
 
