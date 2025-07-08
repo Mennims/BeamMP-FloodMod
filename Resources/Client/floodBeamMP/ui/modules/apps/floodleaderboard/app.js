@@ -279,7 +279,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						power: record.enginePower,
 						timeAlive: record.timeAlive || 0,
 						finishTime: record.finishTime || 0,
-						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
+						timestamp: parseTimestamp(record.timestamp), // Handle both seconds and milliseconds
 						floodSpeed: Math.round(record.floodSpeed * 100) / 100, // Round to 2 decimal places
 						maxDistance: Math.floor(record.trackLength),
 						progressPercent: record.progressPercent,
@@ -300,7 +300,7 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 						power: record.enginePower,
 						timeAlive: record.timeAlive || 0,
 						finishTime: record.finishTime || 0,
-						timestamp: new Date(record.timestamp * 1000), // Convert from Unix timestamp
+						timestamp: parseTimestamp(record.timestamp), // Handle both seconds and milliseconds
 						floodSpeed: Math.round(record.floodSpeed * 100) / 100, // Round to 2 decimal places
 						maxDistance: Math.floor(record.trackLength),
 						progressPercent: record.progressPercent,
@@ -314,6 +314,25 @@ angular.module("beamng.apps").directive("floodleaderboard", [function () {
 					
 				} catch (error) {
 					console.error('Error parsing leaderboard data:', error);
+				}
+			}
+
+			// Helper function to handle backward compatibility for timestamps
+			function parseTimestamp(timestamp) {
+				if (!timestamp || timestamp === 0) {
+					return new Date(0);
+				}
+				
+				// If timestamp is a very large number (> year 2100), it's likely already in milliseconds
+				// If it's smaller, it's probably in seconds and needs conversion
+				const YEAR_2100_SECONDS = 4102444800; // January 1, 2100 in seconds
+				
+				if (timestamp > YEAR_2100_SECONDS) {
+					// Already in milliseconds
+					return new Date(timestamp);
+				} else {
+					// In seconds, convert to milliseconds
+					return new Date(timestamp * 1000);
 				}
 			}
 
