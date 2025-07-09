@@ -493,17 +493,17 @@ function M.calculateScore(entry, roundFloodSpeed)
     
     -- Time score: LOWER time = HIGHER score (faster completion is better)
     -- Inverted scoring: 1.0 for instant completion, decreasing as time increases
-    local maxTime = 900 -- 15 minutes reference time in seconds
+    local maxTime = 720 -- 12 minutes reference time in seconds
     local timeScore = 1.0 - math.min(1.0, timeForScoringSeconds / maxTime) -- Inverted: lower time = higher score
     
     local floodSpeedMultiplier = math.max(0.5, math.min(2.0, floodSpeed / 2.2)) -- 0.5-2.0x based on flood speed (2.2 m/s reference)
     
     -- Weighted scoring formula
-    -- Distance: 40% weight (primary factor)
+    -- Distance: 60% weight (primary factor)
     -- Time: 35% weight (speed bonus - lower time = higher score)
-    -- Flood speed: 25% weight (difficulty multiplier)
+    -- Flood speed: 5% weight (difficulty multiplier)
     local baseScore = (distanceScore * 0.60) + (timeScore * 0.35)
-    local finalScore = baseScore * (1.0 + (floodSpeedMultiplier - 1.0) * 0.25)
+    local finalScore = baseScore * (1.0 + (floodSpeedMultiplier - 1.0) * 0.05)
     
     -- Bonus for completing the track
     if distance >= trackLength * 0.95 then -- 95% completion bonus
@@ -516,68 +516,21 @@ function M.calculateScore(entry, roundFloodSpeed)
     end
 
     -- Prevent players from cheating the leaderboard by using a higher flood speed
-    if floodSpeed > 40 or distance <= 0 then
+    if floodSpeed > 3.3 or distance <= 0 then
         finalScore = 0
     end
 
     -- Prevent players from cheating the leaderboard by teleporting to the end
-    if timeForScoringSeconds < 240 and distance > trackLength * 0.7 then
+    if timeForScoringSeconds < 180 and distance > trackLength * 0.7 then
         finalScore = 0
     end
     
     return finalScore
 end
 
--- Migrate old data from seconds to milliseconds
-function M.migrateToMilliseconds()
-    local migrationCount = 0
-    
-    -- Migrate daily records
-    for _, record in ipairs(M.state.dailyRecords) do
-        -- Check if record needs migration (values under 1000000 are likely in seconds)
-        if record.timeAlive and record.timeAlive < 1000000 then
-            record.timeAlive = record.timeAlive * 1000
-            migrationCount = migrationCount + 1
-        end
-        if record.finishTime and record.finishTime < 1000000 and record.finishTime > 0 then
-            record.finishTime = record.finishTime * 1000
-        end
-        if record.roundDuration and record.roundDuration < 1000000 then
-            record.roundDuration = record.roundDuration * 1000
-        end
-        -- Timestamps should remain as they are (already in milliseconds from os.time() * 1000)
-    end
-    
-    -- Migrate weekly records
-    for _, record in ipairs(M.state.weeklyRecords) do
-        -- Check if record needs migration (values under 1000000 are likely in seconds)
-        if record.timeAlive and record.timeAlive < 1000000 then
-            record.timeAlive = record.timeAlive * 1000
-            migrationCount = migrationCount + 1
-        end
-        if record.finishTime and record.finishTime < 1000000 and record.finishTime > 0 then
-            record.finishTime = record.finishTime * 1000
-        end
-        if record.roundDuration and record.roundDuration < 1000000 then
-            record.roundDuration = record.roundDuration * 1000
-        end
-    end
-    
-    if migrationCount > 0 then
-        print("Migrated " .. migrationCount .. " records from seconds to milliseconds")
-        M.saveLeaderboardData()
-        return true
-    else
-        print("No records needed migration to milliseconds")
-        return false
-    end
-end
-
 -- Initialize the leaderboard system
 function M.initialize()
     initializeLeaderboardData()
-    -- M.migrateToMilliseconds()
-    print("Leaderboard system initialized")
 end
 
 -- TODO: Implement these functions when vehicle data access is available
