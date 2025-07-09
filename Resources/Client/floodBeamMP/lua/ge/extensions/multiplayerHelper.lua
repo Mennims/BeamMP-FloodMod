@@ -1,4 +1,11 @@
 local M = {}
+local lpack = require("lpack")
+
+M.state = {
+    frozenVehicles = {} -- {vehID = {frozen = true/false}}
+}
+
+local vehicleData = {}
 
 -- Vehicle helpers
 
@@ -41,13 +48,15 @@ local function teleportVehicleToLastRoad(resetVehicle, destinationPos)
     end
 end
 
+-- Sets player's vehicle freeze state
 local function setVehicleFreeze(freeze)
     local veh = be:getPlayerVehicle(0)
     if veh then
+        local vehID = veh:getID()
         if freeze then
-            veh:queueLuaCommand('controller.setFreeze(1)')
+            M.state.frozenVehicles[vehID] = {freeze = true}
         else
-            veh:queueLuaCommand('controller.setFreeze(0)')
+            M.state.frozenVehicles[vehID] = {freeze = false}
         end
     end
 end
@@ -125,6 +134,64 @@ local function getRoadDistanceRemaining(destinationPos)
     end
 end
 
+-- 
+
+local function onUpdate(dtSim, dtRaw)
+    -- Vehicle Freezing
+    for freezeVehID, freezeData in pairs(M.state.frozenVehicles) do
+        local freezeVehicle = vehicleData[freezeVehID]
+
+        if freezeVehicle ~= nil then
+            if freezeData.freeze then
+                freezeVehicle:queueLuaCommand('controller.setFreeze(1)')
+            else
+                freezeVehicle:queueLuaCommand('controller.setFreeze(0)')
+            end
+        end
+    end
+
+    -- local playerVeh = be:getPlayerVehicle(0)
+    -- if playerVeh == nil then return end
+
+    -- playerVeh:queueLuaCommand("obj:setGhostEnabled(false)")
+    -- playerVeh:setHidden(false)
+
+    -- for otherVid,otherVehData in pairs(vehicleData) do
+    --     if vid ~= otherVid then
+    --         local obj = scenetree.findObjectById(otherVid)
+    --         if obj == nil then
+    --             vehicleData[otherVid] = nil
+    --         else
+    --             local dist = vehData.pos:distance(otherVehData.pos)
+    --             if dist < colDistance then
+    --                 -- obj:setGhostEnabled(true)
+    --                 obj:queueLuaCommand("obj:setGhostEnabled(false)")
+    --             else
+    --                 -- obj:setGhostEnabled(false)
+    --                 obj:queueLuaCommand("obj:setGhostEnabled(true)")
+    --             end
+
+    --             if dist < visibleDistance then
+    --                 obj:setHidden(false)
+    --             else
+    --                 obj:setHidden(true)
+    --             end
+    --         end
+    --     end
+    -- end
+
+    -- Reset for next frame
+    vehicleData = {}
+end
+
+local function onVehicleData(packed)
+    local data = lpack.decode(packed)
+    vehicleData[data.vehID] = {}
+    -- Copy values over
+    for k, v in pairs(data) do
+        vehicleData[data.vehID][k] = v
+    end
+end
 
 M.resetVehicle = resetVehicle
 M.resetVehicleToPos = resetVehicleToPos
@@ -140,6 +207,11 @@ M.setUiLayout = setUiLayout
 M.spawnDefaultVehicle = spawnDefaultVehicle
 M.getRoadDistance = getRoadDistance
 M.getRoadDistanceRemaining = getRoadDistanceRemaining
+
+-- 
+M.onUpdate = onUpdate
+M.onVehicleData = onVehicleData
+
 
 
 return M

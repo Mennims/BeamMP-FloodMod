@@ -9,6 +9,7 @@ M.state = {
     currentRound = {},
     dailyRecords = {},
     weeklyRecords = {},
+    historicalRecords = {}, -- New: Store records older than 7 days
     lastCurrentRoundUpdate = 0,
     lastFullUpdate = 0,
     currentRoundInterval = 250, -- Send current round updates every 250ms during race
@@ -69,6 +70,7 @@ local function initializeLeaderboardData()
             if success and data then
                 M.state.dailyRecords = data.dailyRecords or {}
                 M.state.weeklyRecords = data.weeklyRecords or {}
+                M.state.historicalRecords = data.historicalRecords or {}
                 print("Loaded leaderboard data successfully")
                 return
             end
@@ -78,6 +80,7 @@ local function initializeLeaderboardData()
     print("Initializing new leaderboard data file")
     M.state.dailyRecords = {}
     M.state.weeklyRecords = {}
+    M.state.historicalRecords = {}
     M.saveLeaderboardData()
 end
 
@@ -86,6 +89,7 @@ function M.saveLeaderboardData()
     local data = {
         dailyRecords = M.state.dailyRecords,
         weeklyRecords = M.state.weeklyRecords,
+        historicalRecords = M.state.historicalRecords,
         lastSaved = os.time()
     }
     
@@ -106,29 +110,69 @@ function M.saveLeaderboardData()
     end
 end
 
--- Clean old records (remove records older than specified days)
+-- Move old records to historical storage instead of deleting them
 local function cleanOldRecords()
-    local currentTime = U.getCurrentTimeMs()
-    local dailyThreshold = currentTime - (24 * 60 * 60 * 1000) -- 24 hours in milliseconds
-    local weeklyThreshold = currentTime - (7 * 24 * 60 * 60 * 1000) -- 7 days in milliseconds
+    local currentTime = os.time() -- Use seconds for comparison since timestamps are in seconds
+    local dailyThreshold = currentTime - (24 * 60 * 60) -- 24 hours in seconds
+    local weeklyThreshold = currentTime - (7 * 24 * 60 * 60) -- 7 days in seconds
     
-    -- Clean daily records
+    local recordsMovedToHistorical = 0
+    
+    -- Process daily records
     local newDailyRecords = {}
     for _, record in pairs(M.state.dailyRecords) do
-        if record.timestamp > dailyThreshold then
+        -- Convert timestamp to seconds if it's in milliseconds (for backwards compatibility)
+        local recordTimestamp = record.timestamp
+        if recordTimestamp > 1000000000000 then -- If timestamp is > year 2001 in milliseconds
+            recordTimestamp = math.floor(recordTimestamp / 1000) -- Convert to seconds
+            record.timestamp = recordTimestamp -- Update the record
+        end
+        
+        if recordTimestamp > dailyThreshold then
             table.insert(newDailyRecords, record)
+        else
+            -- Move to historical records
+            table.insert(M.state.historicalRecords, record)
+            recordsMovedToHistorical = recordsMovedToHistorical + 1
         end
     end
     M.state.dailyRecords = newDailyRecords
     
-    -- Clean weekly records  
+    -- Process weekly records  
     local newWeeklyRecords = {}
     for _, record in pairs(M.state.weeklyRecords) do
-        if record.timestamp > weeklyThreshold then
+        -- Convert timestamp to seconds if it's in milliseconds (for backwards compatibility)
+        local recordTimestamp = record.timestamp
+        if recordTimestamp > 1000000000000 then -- If timestamp is > year 2001 in milliseconds
+            recordTimestamp = math.floor(recordTimestamp / 1000) -- Convert to seconds
+            record.timestamp = recordTimestamp -- Update the record
+        end
+        
+        if recordTimestamp > weeklyThreshold then
             table.insert(newWeeklyRecords, record)
+        else
+            -- This record should already be in historical from daily cleanup, but check to avoid duplicates
+            local alreadyInHistorical = false
+            for _, historicalRecord in pairs(M.state.historicalRecords) do
+                if historicalRecord.playerId == record.playerId and 
+                   historicalRecord.timestamp == record.timestamp and
+                   historicalRecord.finalDistanceTraveled == record.finalDistanceTraveled then
+                    alreadyInHistorical = true
+                    break
+                end
+            end
+            
+            if not alreadyInHistorical then
+                table.insert(M.state.historicalRecords, record)
+                recordsMovedToHistorical = recordsMovedToHistorical + 1
+            end
         end
     end
     M.state.weeklyRecords = newWeeklyRecords
+    
+    if recordsMovedToHistorical > 0 then
+        print("Moved " .. recordsMovedToHistorical .. " old records to historical storage")
+    end
 end
 
 -- Compare two records for sorting (score-based ranking)
@@ -286,8 +330,8 @@ end
 -- Save current round results to daily/weekly records
 function M.saveRoundResults(roundDuration, floodSpeed)
     local leaderboard = M.getCurrentRoundLeaderboard()
-    -- Use millisecond precision for timestamp
-    local currentTime = U.getCurrentTimeMs()
+    -- Use seconds for timestamp to match historical records format
+    local currentTime = os.time()
     
     for _, entry in ipairs(leaderboard) do
         local historicalEntry = U.deepcopy(historicalEntryTemplate)
@@ -323,7 +367,7 @@ function M.saveRoundResults(roundDuration, floodSpeed)
     end
     
     -- Clean old records
-    -- cleanOldRecords()
+    cleanOldRecords()
     
     -- Save to file
     M.saveLeaderboardData()
@@ -406,6 +450,36 @@ function M.getWeeklyLeaderboard()
     end
     
     return rankedRecords
+end
+
+-- Get historical records (older than 7 days)
+function M.getHistoricalRecords()
+    -- Sort historical records by timestamp (newest first)
+    local sortedRecords = {}
+    for _, record in pairs(M.state.historicalRecords) do
+        table.insert(sortedRecords, record)
+    end
+    
+    table.sort(sortedRecords, function(a, b)
+        return (a.timestamp or 0) > (b.timestamp or 0)
+    end)
+    
+    return sortedRecords
+end
+
+-- Get leaderboard statistics
+function M.getLeaderboardStats()
+    local currentRoundCount = 0
+    for _ in pairs(M.state.currentRound) do
+        currentRoundCount = currentRoundCount + 1
+    end
+    
+    return {
+        dailyRecordsCount = #M.state.dailyRecords,
+        weeklyRecordsCount = #M.state.weeklyRecords,
+        historicalRecordsCount = #M.state.historicalRecords,
+        currentRoundPlayersCount = currentRoundCount
+    }
 end
 
 -- Send full leaderboard updates to clients (all tabs)
