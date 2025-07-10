@@ -10,10 +10,10 @@ local M = {
     ghosts = {},
     selfGhost = false,
 
-    ghostsRadius = 5,
-    ghostDelay = 3000,
-    ghostAlpha = .1,
-    playerAlpha = 1,
+    ghostsRadius = 15,    -- INCREASED: 15 meters for better reset protection
+    ghostDelay = 3000,    -- 3 seconds of immunity after reset
+    ghostAlpha = .1,      -- 10% opacity when ghosted
+    playerAlpha = 1,      -- 100% opacity when normal
 
     alphas = {},
 }
@@ -93,6 +93,10 @@ local function addGhostSelf(gameVehID)
     end
 
     M.selfGhost = true
+    
+    -- IMMEDIATE COLLISION DISABLE: Don't wait for render tick
+    setCollisions(false)
+    
     local eventNameTimeout = svar("BJIGhostSelfTimeout{1}", { gameVehID })
     BJIAsync.removeTask(eventNameTimeout)
     local timeout = GetCurrentTimeMillis() + M.ghostDelay
@@ -108,15 +112,46 @@ local function addGhostSelf(gameVehID)
         return true
     end, function()
         M.selfGhost = false
+        -- Re-evaluate collision state after ghost period ends
+        if M.type == M.TYPES.GHOSTS then
+            local currentVeh = BJIVeh.getCurrentVehicle()
+            if currentVeh then
+                local shouldHaveCollisions = not areCloseVehicles(currentVeh:getID())
+                setCollisions(shouldHaveCollisions)
+            end
+        end
     end, eventNameTimeout)
 end
 
 local function addGhostOther(gameVehID)
     M.ghosts[gameVehID] = true
+    
+    -- IMMEDIATE COLLISION DISABLE: If this ghost is close, disable collisions now
+    local currentVeh = BJIVeh.getCurrentVehicle()
+    if currentVeh then
+        local target = BJIVeh.getVehicleObject(gameVehID)
+        if target then
+            local distance = BJIVeh.getPositionRotation(currentVeh).pos
+                :distance(BJIVeh.getPositionRotation(target).pos)
+            local maxDist = getGhostDistance(currentVeh, target)
+            if distance < maxDist then
+                setCollisions(false)
+            end
+        end
+    end
+    
     local eventNameTimeout = svar("BJIGhostOtherTimeout{1}", { gameVehID })
     BJIAsync.removeTask(eventNameTimeout)
     BJIAsync.delayTask(function()
         M.ghosts[gameVehID] = nil
+        -- Re-evaluate collision state after ghost period ends
+        if M.type == M.TYPES.GHOSTS then
+            local currentVeh = BJIVeh.getCurrentVehicle()
+            if currentVeh then
+                local shouldHaveCollisions = not areCloseVehicles(currentVeh:getID())
+                setCollisions(shouldHaveCollisions)
+            end
+        end
     end, M.ghostDelay, eventNameTimeout)
 end
 
