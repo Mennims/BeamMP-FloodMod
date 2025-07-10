@@ -10,10 +10,10 @@ local M = {
     ghosts = {},
     selfGhost = false,
 
-    ghostsRadius = 15,    -- INCREASED: 15 meters for better reset protection
-    ghostDelay = 3000,    -- 3 seconds of immunity after reset
-    ghostAlpha = .1,      -- 10% opacity when ghosted
-    playerAlpha = 1,      -- 100% opacity when normal
+    ghostsRadius = 15,
+    ghostDelay = 3000,
+    ghostAlpha = .2,
+    playerAlpha = 1,
 
     alphas = {},
 }

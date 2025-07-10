@@ -48,7 +48,6 @@ local function teleportVehicleToLastRoad(resetVehicle, destinationPos)
     end
 end
 
--- Sets player's vehicle freeze state
 local function setVehicleFreeze(freeze)
     local veh = be:getPlayerVehicle(0)
     if veh then
@@ -58,6 +57,8 @@ local function setVehicleFreeze(freeze)
         else
             M.state.frozenVehicles[vehID] = {freeze = false}
         end
+    else
+        print("setVehicleFreeze called but no player vehicle found")
     end
 end
 
@@ -139,46 +140,18 @@ end
 local function onUpdate(dtSim, dtRaw)
     -- Vehicle Freezing
     for freezeVehID, freezeData in pairs(M.state.frozenVehicles) do
-        local freezeVehicle = vehicleData[freezeVehID]
-
+        local freezeVehicle = scenetree.findObjectById(freezeVehID)
+        
         if freezeVehicle ~= nil then
             if freezeData.freeze then
                 freezeVehicle:queueLuaCommand('controller.setFreeze(1)')
             else
                 freezeVehicle:queueLuaCommand('controller.setFreeze(0)')
             end
+        else
+            M.state.frozenVehicles[freezeVehID] = nil
         end
     end
-
-    -- local playerVeh = be:getPlayerVehicle(0)
-    -- if playerVeh == nil then return end
-
-    -- playerVeh:queueLuaCommand("obj:setGhostEnabled(false)")
-    -- playerVeh:setHidden(false)
-
-    -- for otherVid,otherVehData in pairs(vehicleData) do
-    --     if vid ~= otherVid then
-    --         local obj = scenetree.findObjectById(otherVid)
-    --         if obj == nil then
-    --             vehicleData[otherVid] = nil
-    --         else
-    --             local dist = vehData.pos:distance(otherVehData.pos)
-    --             if dist < colDistance then
-    --                 -- obj:setGhostEnabled(true)
-    --                 obj:queueLuaCommand("obj:setGhostEnabled(false)")
-    --             else
-    --                 -- obj:setGhostEnabled(false)
-    --                 obj:queueLuaCommand("obj:setGhostEnabled(true)")
-    --             end
-
-    --             if dist < visibleDistance then
-    --                 obj:setHidden(false)
-    --             else
-    --                 obj:setHidden(true)
-    --             end
-    --         end
-    --     end
-    -- end
 
     -- Reset for next frame
     vehicleData = {}

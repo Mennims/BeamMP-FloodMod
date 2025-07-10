@@ -6,13 +6,11 @@ local allWater = {}
 local ocean = nil
 local calledOnInit = false -- For calling "E_OnInitialize" only once when BeamMP's experimental "Disable lua reloading when bla bla bla" is enabled
 
--- COLLISION MANAGER INTEGRATION: Add collision state tracking
 M.collisionState = {
     isRoundActive = false,
     disableCollisionsOnReset = true -- Set to true to disable collisions when someone resets during round
 }
 
--- COLLISION MANAGER INTEGRATION: Collision control functions
 M.setCollisionType = function(collisionType)
     -- Ensure BJI extension is loaded
     if not extensions.BJI then
@@ -236,15 +234,8 @@ AddEventHandler("E_SetWaterLevel", function(level)
     handleWaterSources() -- Hides/Shows water sources depending on the ocean level
 end)
 
--- COLLISION MANAGER INTEGRATION: Handle vehicle resets during rounds
 AddEventHandler("E_ResetVehicle", function(args)
     log("W", "E_ResetVehicle", "Resetting vehicle")
-
-    -- Check if we should disable collisions on reset during active round
-    if M.collisionState.isRoundActive and M.collisionState.disableCollisionsOnReset then
-        M.disableCollisions()
-        log("I", "floodBeamMP", "Collisions disabled due to reset during active round")
-    end
 
     MH.resetVehicle()
 end)
@@ -264,11 +255,11 @@ AddEventHandler("E_SetVehicleFreeze", function(freeze)
 
     if freeze then
         log("W", "E_SetVehicleFreeze", "Freezing vehicle")
+        MH.setVehicleFreeze(true)
     else
         log("W", "E_SetVehicleFreeze", "Unfreezing vehicle")
+        MH.setVehicleFreeze(false)
     end
-
-    MH.setVehicleFreeze(freeze)
 end)
 
 AddEventHandler("E_ResetToRoad", function(destinationPosJson)
@@ -279,25 +270,13 @@ AddEventHandler("E_ResetToRoad", function(destinationPosJson)
     MH.teleportVehicleToLastRoad(true, destinationPos)
 end)
 
-AddEventHandler("E_SetVehicleFreeze", function(freeze)
-    freeze = MH.isTrue(freeze)
-
-    if freeze then
-        log("W", "E_SetVehicleFreeze", "Freezing vehicle")
-    else
-        log("W", "E_SetVehicleFreeze", "Unfreezing vehicle")
-    end
-
-    MH.setVehicleFreeze(freeze)
-end)
-
 AddEventHandler("E_SetVehicleRecoveryEnabled", function(enabled)
     enabled = MH.isTrue(enabled)
 
     if enabled then
-        log("W", "E_SetVehicleFreeze", "Enabling vehicle recovery")
+        log("W", "E_SetVehicleRecoveryEnabled", "Enabling vehicle recovery")
     else
-        log("W", "E_SetVehicleFreeze", "Disabling vehicle recovery")
+        log("W", "E_SetVehicleRecoveryEnabled", "Disabling vehicle recovery")
     end
 
     MH.setVehicleRecoveryEnabled(enabled)
@@ -425,11 +404,8 @@ AddEventHandler("E_RoundStarted", function(startTimeStr)
     M.state.roundStartTime = tonumber(startTimeStr)
     log("I", "floodBeamMP", "Round started at: " .. M.state.roundStartTime)
     
-    -- COLLISION MANAGER INTEGRATION: Mark round as active and disable collisions at start
     M.collisionState.isRoundActive = true
-    M.disableCollisions() -- Disable collisions at round start
     
-    -- Send round start time to UI (as milliseconds)
     guihooks.trigger('RoundStarted', M.state.roundStartTime)
 end)
 
@@ -437,11 +413,7 @@ AddEventHandler("E_RoundEnded", function(endTimeStr)
     local endTime = tonumber(endTimeStr)
     log("I", "floodBeamMP", "Round ended at: " .. endTime)
     
-    -- COLLISION MANAGER INTEGRATION: Mark round as ended and reset collisions
-    M.collisionState.isRoundActive = false
-    M.resetToDefaultCollisions() -- Reset to default collision behavior
     
-    -- Send round end event to UI (as milliseconds)
     guihooks.trigger('RoundEnded', endTime)
 end)
 
@@ -469,7 +441,6 @@ AddEventHandler("E_PlayerFinished", function(finishDataJson)
     end
 end)
 
--- COLLISION MANAGER INTEGRATION: Add server events for collision control
 AddEventHandler("E_SetCollisionType", function(collisionTypeStr)
     local collisionType = tonumber(collisionTypeStr)
     if collisionType then
@@ -503,6 +474,8 @@ M.trackVehReset = trackVehReset
 function onUpdate(dtReal, dtSim, dtRaw)
     -- Convert dtSim to milliseconds
     local dtMs = dtSim * 1000
+    
+    MH.onUpdate(dtSim, dtRaw)
     
     M.updateRoadDistance()
     

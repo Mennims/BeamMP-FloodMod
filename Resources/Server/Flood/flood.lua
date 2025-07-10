@@ -191,8 +191,6 @@ local function beginFlood()
     -- Sync flood speed to all players at round start
     setFloodSpeed(M.options.floodSpeed)
 
-    -- COLLISION MANAGER INTEGRATION: Use BJI CollisionsManager instead of basic collision system
-    -- Enable smart ghosting during race (vehicles ghost when close, normal when far)
     MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
 end
 
@@ -544,7 +542,6 @@ end
 local function prepareFlood()
     print("Preparing flood")
 
-    -- COLLISION MANAGER INTEGRATION: Disable collisions during preparation phase
     MP.TriggerClientEvent(-1, "E_DisableCollisions", "")
     resetPlayersRespawnedCount()
     resetAutoStartCountdown()
@@ -921,9 +918,7 @@ M.commands["stop"] = function(pid)
     resetPlayersRespawnedCount()
     resetAutoStartCountdown()
     resetCountdown();
-    -- COLLISION MANAGER INTEGRATION: Disable collisions when stopping
-    MP.TriggerClientEvent(-1, "E_DisableCollisions", "")
-    
+
     -- Notify clients that round has ended (with millisecond precision)
     local currentTime = U.getCurrentTimeMs()
     MP.TriggerClientEvent(-1, "E_RoundEnded", tostring(currentTime))
@@ -931,8 +926,7 @@ M.commands["stop"] = function(pid)
     U.setTimeout(function()
         C.setVehicleRecoveryEnabled(true)
         resetVehiclesToStartPositions()
-        -- COLLISION MANAGER INTEGRATION: Enable smart ghosting after reset
-        MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
+        MP.TriggerClientEvent(-1, "E_EnableCollisions", "")
     end, 250)
 
     M.state.floodStartQueued = false
@@ -1267,7 +1261,6 @@ M.commands["migrate_milliseconds"] = function(pid)
     end
 end
 
--- COLLISION MANAGER INTEGRATION: Add server commands for collision control
 M.commands["collisions_forced"] = function(pid)
     MP.TriggerClientEvent(-1, "E_EnableCollisions", "")
     MP.hSendChatMessage(-1, "^6Collisions set to FORCED - vehicles will collide normally")
@@ -1281,11 +1274,6 @@ end
 M.commands["collisions_ghosts"] = function(pid)
     MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
     MP.hSendChatMessage(-1, "^2Collisions set to GHOSTS - smart collision system enabled")
-end
-
-M.commands["collisions_default"] = function(pid)
-    MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
-    MP.hSendChatMessage(-1, "^7Collisions reset to default (smart ghosting)")
 end
 
 return M
