@@ -10,9 +10,9 @@ local M = {
     ghosts = {},
     selfGhost = false,
 
-    ghostsRadius = 15,
+    ghostsRadius = 8,
     ghostDelay = 3000,
-    ghostAlpha = .2,
+    ghostAlpha = .4,
     playerAlpha = 1,
 
     alphas = {},
