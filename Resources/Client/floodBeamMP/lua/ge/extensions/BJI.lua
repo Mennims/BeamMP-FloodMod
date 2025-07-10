@@ -44,7 +44,8 @@ function RegisterBJIManager(manager)
     table.insert(managers, manager)
 end
 
-require("ge/extensions/utils/Bench")
+-- COLLISION MANAGER MODIFICATION: Removed Bench.lua dependency as it's not needed
+-- require("ge/extensions/utils/Bench")
 
 function TriggerBJIEvent(eventName, ...)
     for i, manager in ipairs(managers) do
@@ -63,14 +64,16 @@ require("ge/extensions/utils/Table")
 require("ge/extensions/utils/LUA")
 require("ge/extensions/utils/MATH")
 require("ge/extensions/utils/Constants")
-require("ge/extensions/utils/Icons")
+-- COLLISION MANAGER MODIFICATION: Removed Icons dependency as it requires GUI setup
+-- require("ge/extensions/utils/Icons")
 ShapeDrawer = require("ge/extensions/utils/ShapeDrawer")
 
 local function loadManagers()
     -- COLLISION MANAGER DEPENDENCIES: Core managers needed for CollisionsManager functionality
     BJIAsync = require("ge/extensions/BJI/managers/AsyncManager")
     BJIContext = require("ge/extensions/BJI/Context")
-    require("ge/extensions/utils/Common")
+    -- COLLISION MANAGER MODIFICATION: Removed Common.lua dependency as it requires missing BJILang
+    -- require("ge/extensions/utils/Common")
     BJIVeh = require("ge/extensions/BJI/managers/VehicleManager")
     BJIAI = require("ge/extensions/BJI/managers/AIManager")
     BJIScenario = require("ge/extensions/BJI/scenario/ScenarioManager")

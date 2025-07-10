@@ -69,10 +69,9 @@ local function areCloseVehicles(selfVehID)
         return false
     end
 
-    local attachedVehs = core_vehicle_partmgmt.findAttachedVehicles(veh:getID())
+    -- Check distance to all other multiplayer vehicles (excluding self)
     for _, v in pairs(BJIVeh.getMPVehicles()) do
-        if not tincludes(attachedVehs, v.gameVehicleID, true) and
-            v.gameVehicleID ~= veh:getID() then
+        if v.gameVehicleID ~= veh:getID() then
             local target = BJIVeh.getVehicleObject(v.gameVehicleID)
             if target then
                 local distance = BJIVeh.getPositionRotation(veh).pos

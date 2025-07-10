@@ -191,7 +191,9 @@ local function beginFlood()
     -- Sync flood speed to all players at round start
     setFloodSpeed(M.options.floodSpeed)
 
-    C.setDynamicCollisionEnabled(true)
+    -- COLLISION MANAGER INTEGRATION: Use BJI CollisionsManager instead of basic collision system
+    -- Enable smart ghosting during race (vehicles ghost when close, normal when far)
+    MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
 end
 
 local function startCountdown()
@@ -470,7 +472,7 @@ local function checkIfRoundShouldEnd()
     
     -- Only end round if all players have completed (won, finished, or died)
     if totalPlayers > 0 and completedPlayers >= totalPlayers then
-        MP.hSendChatMessage(-1, "^6^oAll players have finished! Starting next round in 10 seconds...")
+        MP.hSendChatMessage(-1, "^6^oStarting next round in 10 seconds...")
         
         M.state.floodStartQueued = true
         U.setTimeout(function()
@@ -542,7 +544,8 @@ end
 local function prepareFlood()
     print("Preparing flood")
 
-    C.setDynamicCollisionEnabled(false)
+    -- COLLISION MANAGER INTEGRATION: Disable collisions during preparation phase
+    MP.TriggerClientEvent(-1, "E_DisableCollisions", "")
     resetPlayersRespawnedCount()
     resetAutoStartCountdown()
     resetCountdown()
@@ -583,7 +586,7 @@ local function prepareFlood()
         C.setVehicleRecoveryEnabled(false)
         resetVehiclesToStartPositions()
         U.setTimeout(startCountdown, 1000)
-    end, 500)
+    end, 250)
 end
 
 -- BeamMP events
@@ -918,7 +921,8 @@ M.commands["stop"] = function(pid)
     resetPlayersRespawnedCount()
     resetAutoStartCountdown()
     resetCountdown();
-    C.setDynamicCollisionEnabled(false)
+    -- COLLISION MANAGER INTEGRATION: Disable collisions when stopping
+    MP.TriggerClientEvent(-1, "E_DisableCollisions", "")
     
     -- Notify clients that round has ended (with millisecond precision)
     local currentTime = U.getCurrentTimeMs()
@@ -927,7 +931,8 @@ M.commands["stop"] = function(pid)
     U.setTimeout(function()
         C.setVehicleRecoveryEnabled(true)
         resetVehiclesToStartPositions()
-        C.setDynamicCollisionEnabled(true)
+        -- COLLISION MANAGER INTEGRATION: Enable smart ghosting after reset
+        MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
     end, 250)
 
     M.state.floodStartQueued = false
@@ -1260,6 +1265,27 @@ M.commands["migrate_milliseconds"] = function(pid)
             MP.hSendChatMessage(pid, "^7No data needed migration.")
         end
     end
+end
+
+-- COLLISION MANAGER INTEGRATION: Add server commands for collision control
+M.commands["collisions_forced"] = function(pid)
+    MP.TriggerClientEvent(-1, "E_EnableCollisions", "")
+    MP.hSendChatMessage(-1, "^6Collisions set to FORCED - vehicles will collide normally")
+end
+
+M.commands["collisions_disabled"] = function(pid)
+    MP.TriggerClientEvent(-1, "E_DisableCollisions", "")
+    MP.hSendChatMessage(-1, "^4Collisions DISABLED - vehicles pass through each other")
+end
+
+M.commands["collisions_ghosts"] = function(pid)
+    MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
+    MP.hSendChatMessage(-1, "^2Collisions set to GHOSTS - smart collision system enabled")
+end
+
+M.commands["collisions_default"] = function(pid)
+    MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
+    MP.hSendChatMessage(-1, "^7Collisions reset to default (smart ghosting)")
 end
 
 return M
