@@ -10,6 +10,8 @@ local blacklistedCommands = {
     ["reset"] = true,
     ["level"] = true,
     ["speed"] = false,
+    ["weather"] = false,
+    ["weather_auto"] = false,
 }
 
 function chatMessageHandler(pid, name, message)

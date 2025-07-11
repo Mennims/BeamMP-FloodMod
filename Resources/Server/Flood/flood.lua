@@ -2,6 +2,7 @@ require("multiplayer")
 local C = require("libs/client")
 local U = require("libs/utils")
 local L = require("libs/leaderboard")
+local Weather = require("libs/weather")
 
 -- Templates
 local playerTemplate = {
@@ -61,6 +62,7 @@ end
 -- Function to update flood state and broadcast to clients
 local function setFloodState(newStatus, newSpeed, newLevel)
     local changed = false
+    local previousStatus = FloodState.status
     
     if newStatus and FloodState.status ~= newStatus then
         FloodState.status = newStatus
@@ -79,6 +81,17 @@ local function setFloodState(newStatus, newSpeed, newLevel)
     
     if changed then
         FloodState.lastUpdate = U.getCurrentTimeMs()
+        
+        -- Handle weather changes based on flood state transitions
+        if newStatus and newStatus ~= previousStatus then
+            if newStatus == FLOOD_STATUS.ROUND_COUNTDOWN and WeatherSync then
+                WeatherSync:onFloodStart()
+            elseif newStatus == FLOOD_STATUS.AUTO_START_COUNTDOWN and WeatherSync then
+                WeatherSync:onFloodStart()
+            elseif newStatus == FLOOD_STATUS.STOPPED and (previousStatus == FLOOD_STATUS.ACTIVE or previousStatus == FLOOD_STATUS.ROUND_COUNTDOWN or previousStatus == FLOOD_STATUS.AUTO_START_COUNTDOWN) and WeatherSync then
+                WeatherSync:onFloodEnd()
+            end
+        end
         
         -- Broadcast flood state to all clients using centralized function
         sendFloodStateUpdate()
@@ -601,6 +614,7 @@ local function welcomePlayer(pid)
     -- MP.hSendChatMessage(pid, "Use ^b/flood_reset^r to reset the flood.")
     -- MP.hSendChatMessage(pid, "Use ^b/flood_level^r to set the flood level.")
     MP.hSendChatMessage(pid, "Use ^b/flood_speed^r to set the flood speed.")
+    MP.hSendChatMessage(pid, "Use ^b/flood_weather^r to change weather presets.")
 end
 
 local function prepareFlood()
@@ -691,6 +705,12 @@ function onPlayerJoin(pid)
         -- Send current flood state to new player using centralized function
         sendFloodStateUpdate(pid)
         
+        -- Sync weather to new player
+        if WeatherSync then
+            WeatherSync:recalcServerTimeOfDay()
+            WeatherSync:syncTimeOfDay()
+        end
+        
         updatePlayerState(pid)
         
         U.setTimeout(function()
@@ -762,9 +782,18 @@ function onInit()
     MP.CancelEventTimer("ET_Update")
     MP.CancelEventTimer("ET_LeaderboardFull")
     MP.CancelEventTimer("ET_LeaderboardCurrentRound")
+    MP.CancelEventTimer("ET_WeatherSync")
     
     -- Initialize leaderboard system
     L.initialize()
+    
+    -- Initialize weather system
+    WeatherSync:init(M.mapConfig, function()
+        -- Weather system initialized, start sync timer
+        MP.CreateEventTimer("ET_WeatherSync", 1000)
+        MP.RegisterEvent("ET_WeatherSync", "T_WeatherSync")
+        print("[WEATHER] Weather sync system started")
+    end)
     
     -- Start full leaderboard broadcasting timer (every 5 seconds always)
     MP.CreateEventTimer("ET_LeaderboardFull", 5000)
@@ -813,6 +842,13 @@ end
 function T_LeaderboardCurrentRound()
     -- Broadcast current round updates every 250ms during race
     L.broadcastCurrentRoundUpdate()
+end
+
+function T_WeatherSync()
+    -- Weather system tick for time progression
+    if WeatherSync then
+        WeatherSync:tick()
+    end
 end
 
 function T_Update()
@@ -1395,6 +1431,73 @@ M.commands["flood_sync"] = function(pid)
         sendFloodStateUpdate()
         MP.hSendChatMessage(-1, "^2Flood state synced to all clients")
     end
+end
+
+-- Weather-related commands
+M.commands["weather"] = function(pid, presetName)
+    if not WeatherSync then
+        MP.hSendChatMessage(pid, "^4Weather system not initialized")
+        return
+    end
+    
+    if not presetName then
+        -- Show current weather and available presets
+        local current = WeatherSync:getCurrentPreset()
+        MP.hSendChatMessage(pid, "^7Current weather preset: ^2" .. (current or "none"))
+        
+        local presets = WeatherSync:getAvailablePresets()
+        if #presets > 0 then
+            MP.hSendChatMessage(pid, "^7Available presets:")
+            for _, preset in ipairs(presets) do
+                MP.hSendChatMessage(pid, "^7  - ^2" .. preset.name .. "^7 (" .. preset.displayName .. ")")
+            end
+        else
+            MP.hSendChatMessage(pid, "^7No weather presets available")
+        end
+        return
+    end
+    
+    local success = WeatherSync:applyPreset(presetName, true) -- Mark as manual change
+    if success then
+        MP.hSendChatMessage(-1, "^6Weather changed to: " .. presetName .. " ^7(by " .. MP.GetPlayerName(pid) .. ")")
+    else
+        MP.hSendChatMessage(pid, "^4Failed to apply weather preset: " .. presetName)
+    end
+end
+
+M.commands["weather_auto"] = function(pid, enabled)
+    if not WeatherSync then
+        MP.hSendChatMessage(pid, "^4Weather system not initialized")
+        return
+    end
+    
+    if not enabled then
+        local autoEnabled = WeatherSync.weatherSettings.autoChangeWeather
+        local manualOverride = WeatherSync:isManualOverride()
+        MP.hSendChatMessage(pid, "^7Auto weather change is: ^2" .. (autoEnabled and "enabled" or "disabled"))
+        MP.hSendChatMessage(pid, "^7Manual override active: ^2" .. (manualOverride and "yes" or "no"))
+        MP.hSendChatMessage(pid, "^7Use: /flood_weather_auto true/false")
+        MP.hSendChatMessage(pid, "^7Use: /flood_weather_auto reset to clear manual override")
+        return
+    end
+    
+    if string.lower(enabled) == "reset" then
+        WeatherSync:clearManualOverride()
+        MP.hSendChatMessage(pid, "^2Manual weather override cleared - auto weather will resume")
+        return
+    end
+    
+    if string.lower(enabled) == "true" or enabled == "1" then
+        enabled = true
+    elseif string.lower(enabled) == "false" or enabled == "0" then
+        enabled = false
+    else
+        MP.hSendChatMessage(pid, "^4Please use true/false, 1/0, or reset")
+        return
+    end
+    
+    WeatherSync.weatherSettings.autoChangeWeather = enabled
+    MP.hSendChatMessage(pid, "^2Auto weather change " .. (enabled and "enabled" or "disabled"))
 end
 
 -- Expose flood state functions for external use

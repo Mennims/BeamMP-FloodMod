@@ -1,7 +1,7 @@
 {
     "floodOptions": {
         "oceanLevel": 85,
-        "floodSpeed": 2.32
+        "floodSpeed": 2.0
     },
     "respawnLimit": 10,
     "totalDistance": 13099,
@@ -11,6 +11,77 @@
             "y": 3175.344971,
             "z": 1227.2677
         }
+    },
+    "weatherPresets": {
+        "clear": {
+            "name": "Clear Weather",
+            "timeOfDay": "10:00",
+            "fixed": true,
+            "dayLengthRealTimeSeconds": 1800,
+            "daytimeScale": 1,
+            "nighttimeScale": 2,
+            "azimuth": 0
+        },
+        "afternoon": {
+            "name": "Afternoon Weather",
+            "timeOfDay": "15:00",
+            "fixed": true,
+            "dayLengthRealTimeSeconds": 1800,
+            "daytimeScale": 1,
+            "nighttimeScale": 1,
+            "azimuth": 0
+        },
+        "dark": {
+            "name": "Dark Weather",
+            "timeOfDay": "18:15",
+            "fixed": true,
+            "dayLengthRealTimeSeconds": 1800,
+            "daytimeScale": 1,
+            "nighttimeScale": 1,
+            "azimuth": 0
+        },
+        "dawn": {
+            "name": "Dawn",
+            "timeOfDay": "06:00",
+            "fixed": true,
+            "dayLengthRealTimeSeconds": 3600,
+            "daytimeScale": 1,
+            "nighttimeScale": 2,
+            "azimuth": 0
+        },
+        "dusk": {
+            "name": "Dusk",
+            "timeOfDay": "17:00",
+            "fixed": true,
+            "dayLengthRealTimeSeconds": 3600,
+            "daytimeScale": 1,
+            "nighttimeScale": 2,
+            "azimuth": 0
+        },
+        "night": {
+            "name": "Night",
+            "timeOfDay": "22:00",
+            "fixed": true,
+            "dayLengthRealTimeSeconds": 1800,
+            "daytimeScale": 2,
+            "nighttimeScale": 1,
+            "azimuth": 0
+        },
+        "dynamic": {
+            "name": "Dynamic Time",
+            "timeOfDay": "10:00",
+            "fixed": false,
+            "dayLengthRealTimeSeconds": 600,
+            "daytimeScale": 1,
+            "nighttimeScale": 2,
+            "azimuth": 0
+        }
+    },
+    "weatherSettings": {
+        "defaultPreset": "clear",
+        "floodStartPreset": "stormy",
+        "floodEndPreset": "clear",
+        "autoChangeWeather": true
     },
     "startPositions": [
         {
