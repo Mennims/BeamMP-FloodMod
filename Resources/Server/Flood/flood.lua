@@ -490,7 +490,6 @@ end
 local function checkForNoVehicles()
     local vehiclesSpawned = false
     for pid, playerState in pairs(M.state.players) do
-        -- Validate player before making API call
         if not isValidPlayer(pid) then
             print("Warning: Player " .. tostring(pid) .. " disconnected, removing from vehicle check")
             M.state.players[pid] = nil
@@ -499,14 +498,9 @@ local function checkForNoVehicles()
             goto continue
         end
         
-        local playerVehicles = MP.GetPlayerVehicles(pid);
-        local playerState = getPlayerState(pid);
-
-        if playerVehicles and type(playerVehicles) == "table" then
-            if (playerVehicles.count and playerVehicles.count > 0) or next(playerVehicles) ~= nil then
-                vehiclesSpawned = true
-                break
-            end
+        if playerState and playerState.totalVehicles and playerState.totalVehicles > 0 then
+            vehiclesSpawned = true
+            break
         end
         ::continue::
     end
@@ -599,12 +593,11 @@ function onPlayerJoin(pid)
         print("Player " .. tostring(pid) .. " joining...")
         
         C.setUiLayout(pid, "flood v0.20")
-        C.spawnDefaultVehicle(pid)
 
         U.setTimeout(function()
             C.setUiLayout(pid, "flood v0.20")
             welcomePlayer(pid)
-        end, 4000)
+        end, 3000)
 
         local eventSuccess = MP.TriggerClientEvent(pid, "E_OnPlayerLoaded", "")
         if eventSuccess then
@@ -653,6 +646,13 @@ function onPlayerJoin(pid)
             end
         end, 2000)
     end)
+
+    U.setTimeout(function()
+        local playerState = getPlayerState(pid)
+        if playerState and playerState.totalVehicles == 0 then
+            C.spawnDefaultVehicle(pid)
+        end
+    end, 6000)
     
     if not success then
         print("Error in onPlayerJoin for player " .. tostring(pid) .. ": " .. tostring(err))
