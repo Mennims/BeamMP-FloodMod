@@ -228,8 +228,9 @@ local function startAutoStartCountdown()
 
     M.autoStartCountdown.started = true;
     U.setTimeout(function()
-        MP.hSendChatMessage(-1, "Join Discord! Click the Discord icon in the Sea Level meter and paste the URL in a browser.")
         MP.hSendChatMessage(-1, "If you get disconnected please reconnect immediately. The server periodically restarts.")
+        MP.hSendChatMessage(-1, "Join Discord! Click the Discord icon in the Sea Level meter and paste the URL in a browser.")
+        MP.hSendChatMessage(-1, "If you have any issues please RESTART BEAM.NG (close and reopen the game)")
     end, 5000)
 
     MP.CreateEventTimer("ET_AutoStartCountdown", 1000)
@@ -666,6 +667,7 @@ function onPlayerDisconnect(pid)
 end
 
 function onVehicleSpawn(pid, vid, data)
+    updatePlayerState(pid)
     if MP.GetPlayerCount() >= 1 and not M.autoStartCountdown.started and not M.countdown.started and not M.options.enabled and not M.state.floodStartQueued then
         startAutoStartCountdown()
     end
@@ -674,14 +676,17 @@ function onVehicleSpawn(pid, vid, data)
 end
 
 function onVehicleReset(pid, pName, data)
+    updatePlayerState(pid)
     return true
 end
 
 function onVehicleEdited(pid, pName, data)
+    updatePlayerState(pid)
     return 0
 end
 
 function onVehicleDeleted(pid, pName)
+    updatePlayerState(pid)
     return true;
 end
 
