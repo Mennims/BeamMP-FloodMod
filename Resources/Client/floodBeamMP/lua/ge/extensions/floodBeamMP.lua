@@ -361,6 +361,33 @@ AddEventHandler("E_SetRainVolume", function(volume)
     soundObj:registerObject('rain_sound')
 end)
 
+AddEventHandler("E_SetFogDensity", function(density)
+    local density = tonumber(density) or 0.0005
+    if density < 0.0005 then density = 0.0005 end
+    
+    log("I", "floodBeamMP", "Setting fog density to: " .. density)
+    
+    if extensions.core_environment and extensions.core_environment.setFogDensity then
+        extensions.core_environment.setFogDensity(density)
+    else
+        log("W", "floodBeamMP", "core_environment.setFogDensity not available")
+    end
+end)
+
+AddEventHandler("E_SetCloudCover", function(cover)
+    local cover = tonumber(cover) or 0.2
+    if cover < 0 then cover = 0 end
+    if cover > 1 then cover = 1 end
+    
+    log("I", "floodBeamMP", "Setting cloud cover to: " .. cover)
+    
+    if extensions.core_environment and extensions.core_environment.setCloudCover then
+        extensions.core_environment.setCloudCover(cover)
+    else
+        log("W", "floodBeamMP", "core_environment.setCloudCover not available")
+    end
+end)
+
 AddEventHandler("E_SetRainAmount", function(amount)
     amount = tonumber(amount) or 0
     local rainObj = findObject("rain_coverage", "Precipitation")

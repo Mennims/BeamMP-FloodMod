@@ -709,6 +709,7 @@ function onPlayerJoin(pid)
         if WeatherSync then
             WeatherSync:recalcServerTimeOfDay()
             WeatherSync:syncTimeOfDay()
+            WeatherSync:syncFogAndClouds()
         end
         
         updatePlayerState(pid)
@@ -1498,6 +1499,65 @@ M.commands["weather_auto"] = function(pid, enabled)
     
     WeatherSync.weatherSettings.autoChangeWeather = enabled
     MP.hSendChatMessage(pid, "^2Auto weather change " .. (enabled and "enabled" or "disabled"))
+end
+
+M.commands["fog"] = function(pid, density)
+    if not WeatherSync then
+        MP.hSendChatMessage(pid, "^4Weather system not initialized")
+        return
+    end
+    
+    if not density then
+        local currentDensity = WeatherSync.options.fogDensity or 0.0005
+        MP.hSendChatMessage(pid, "^7Current fog density: ^2" .. currentDensity)
+        MP.hSendChatMessage(pid, "^7Fog density guide:")
+        MP.hSendChatMessage(pid, "^7  0.0005 - Minimal fog")
+        MP.hSendChatMessage(pid, "^7  0.001 - Slightly foggy")
+        MP.hSendChatMessage(pid, "^7  0.002 - Mildly foggy")
+        MP.hSendChatMessage(pid, "^7  0.007 - Foggy day")
+        MP.hSendChatMessage(pid, "^7  0.02 - Very foggy")
+        MP.hSendChatMessage(pid, "^7Use: /flood_fog <density>")
+        return
+    end
+    
+    local density = tonumber(density)
+    if not density or density < 0.0005 then
+        MP.hSendChatMessage(pid, "^4Invalid fog density. Minimum is 0.0005")
+        return
+    end
+    
+    WeatherSync.options.fogDensity = density
+    WeatherSync:syncFogAndClouds()
+    MP.hSendChatMessage(-1, "^6Fog density set to: " .. density .. " ^7(by " .. MP.GetPlayerName(pid) .. ")")
+end
+
+M.commands["clouds"] = function(pid, cover)
+    if not WeatherSync then
+        MP.hSendChatMessage(pid, "^4Weather system not initialized")
+        return
+    end
+    
+    if not cover then
+        local currentCover = WeatherSync.options.cloudCover or 0.2
+        MP.hSendChatMessage(pid, "^7Current cloud cover: ^2" .. currentCover)
+        MP.hSendChatMessage(pid, "^7Cloud cover guide:")
+        MP.hSendChatMessage(pid, "^7  0.2 - Minimal clouds")
+        MP.hSendChatMessage(pid, "^7  0.5 - Partly cloudy")
+        MP.hSendChatMessage(pid, "^7  0.8 - Mostly cloudy")
+        MP.hSendChatMessage(pid, "^7  1.0 - Overcast")
+        MP.hSendChatMessage(pid, "^7Use: /flood_clouds <cover>")
+        return
+    end
+    
+    local cover = tonumber(cover)
+    if not cover or cover < 0 or cover > 1 then
+        MP.hSendChatMessage(pid, "^4Invalid cloud cover. Must be between 0 and 1")
+        return
+    end
+    
+    WeatherSync.options.cloudCover = cover
+    WeatherSync:syncFogAndClouds()
+    MP.hSendChatMessage(-1, "^6Cloud cover set to: " .. cover .. " ^7(by " .. MP.GetPlayerName(pid) .. ")")
 end
 
 -- Expose flood state functions for external use

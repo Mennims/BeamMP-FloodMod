@@ -44,6 +44,8 @@ local FloodWeatherSync = {
             azimuth = 0,
             fixed = false
         },
+        fogDensity = 0.0005,
+        cloudCover = 0.2,
         syncRate = 2,
         debug = false
     },
@@ -114,8 +116,12 @@ local FloodWeatherSync = {
             self.options.timeOfDay.nighttimeScale = defaultPreset.nighttimeScale or self._defaultOptions.timeOfDay.nighttimeScale
             self.options.timeOfDay.azimuth = defaultPreset.azimuth or self._defaultOptions.timeOfDay.azimuth
             self.options.timeOfDay.fixed = defaultPreset.fixed or self._defaultOptions.timeOfDay.fixed
+            self.options.fogDensity = defaultPreset.fogDensity or self._defaultOptions.fogDensity
+            self.options.cloudCover = defaultPreset.cloudCover or self._defaultOptions.cloudCover
         else
             self._state.timeOfDay = self:convertClockTimeToGameTime(self._defaultOptions.timeOfDay.serverWorldStartTime) or 0.5
+            self.options.fogDensity = self._defaultOptions.fogDensity
+            self.options.cloudCover = self._defaultOptions.cloudCover
         end
         
         -- Normalize/sanitize options
@@ -157,6 +163,10 @@ local FloodWeatherSync = {
         self.options.timeOfDay.azimuth = preset.azimuth or self._defaultOptions.timeOfDay.azimuth
         self.options.timeOfDay.fixed = preset.fixed ~= nil and preset.fixed or self._defaultOptions.timeOfDay.fixed
         
+        -- Update fog and cloud settings
+        self.options.fogDensity = preset.fogDensity or 0.0005
+        self.options.cloudCover = preset.cloudCover or 0.2
+        
         -- Recalculate derived options
         self.options.timeOfDay.__dayLengthRealTimeSecondsPart = 1.0 / self.options.timeOfDay.dayLengthRealTimeSeconds
         self:updateDerivedOptions()
@@ -164,6 +174,9 @@ local FloodWeatherSync = {
         -- Set time and sync
         self:setTimeOfDay(timeValue, self.options.timeOfDay.fixed)
         self._state.currentPreset = presetName
+        
+        -- Sync fog and clouds
+        self:syncFogAndClouds()
         
         -- Track if this was a manual change
         if isManual then
@@ -280,6 +293,15 @@ local FloodWeatherSync = {
         local data = t .. "|" .. self.options.timeOfDay.dayLengthRealTimeSeconds .. "|" .. self.options.timeOfDay.daytimeScale .. "|" .. self.options.timeOfDay.nighttimeScale .. "|" .. self.options.timeOfDay.__play .. "|" .. self.options.timeOfDay.azimuth
         self:printDebug("Syncing time of day (" .. t .. ")")
         MP.TriggerClientEvent(-1, "BeamMPEnvSyncSetTimeOfDay", data)
+    end
+    
+    function FloodWeatherSync:syncFogAndClouds()
+        if self.options.fogDensity then
+            MP.TriggerClientEvent(-1, "E_SetFogDensity", tostring(self.options.fogDensity))
+        end
+        if self.options.cloudCover then
+            MP.TriggerClientEvent(-1, "E_SetCloudCover", tostring(self.options.cloudCover))
+        end
     end
 
     function FloodWeatherSync:tick()

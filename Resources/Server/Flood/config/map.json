@@ -20,7 +20,9 @@
             "dayLengthRealTimeSeconds": 1800,
             "daytimeScale": 1,
             "nighttimeScale": 2,
-            "azimuth": 0
+            "azimuth": 0,
+            "fogDensity": 0.0005,
+            "cloudCover": 0.2
         },
         "afternoon": {
             "name": "Afternoon Weather",
@@ -29,7 +31,9 @@
             "dayLengthRealTimeSeconds": 1800,
             "daytimeScale": 1,
             "nighttimeScale": 1,
-            "azimuth": 0
+            "azimuth": 0,
+            "fogDensity": 0.001,
+            "cloudCover": 0.3
         },
         "dark": {
             "name": "Dark Weather",
@@ -38,7 +42,20 @@
             "dayLengthRealTimeSeconds": 1800,
             "daytimeScale": 1,
             "nighttimeScale": 1,
-            "azimuth": 0
+            "azimuth": 0,
+            "fogDensity": 0.0005,
+            "cloudCover": 0.6
+        },
+        "darkFoggy": {
+            "name": "Dark Foggy Weather",
+            "timeOfDay": "18:15",
+            "fixed": true,
+            "dayLengthRealTimeSeconds": 1800,
+            "daytimeScale": 1,
+            "nighttimeScale": 1,
+            "azimuth": 0,
+            "fogDensity": 0.001,
+            "cloudCover": 0.6
         },
         "dawn": {
             "name": "Dawn",
@@ -47,7 +64,9 @@
             "dayLengthRealTimeSeconds": 3600,
             "daytimeScale": 1,
             "nighttimeScale": 2,
-            "azimuth": 0
+            "azimuth": 0,
+            "fogDensity": 0.002,
+            "cloudCover": 0.4
         },
         "dusk": {
             "name": "Dusk",
@@ -56,7 +75,9 @@
             "dayLengthRealTimeSeconds": 3600,
             "daytimeScale": 1,
             "nighttimeScale": 2,
-            "azimuth": 0
+            "azimuth": 0,
+            "fogDensity": 0.001,
+            "cloudCover": 0.5
         },
         "night": {
             "name": "Night",
@@ -65,7 +86,31 @@
             "dayLengthRealTimeSeconds": 1800,
             "daytimeScale": 2,
             "nighttimeScale": 1,
-            "azimuth": 0
+            "azimuth": 0,
+            "fogDensity": 0.002,
+            "cloudCover": 0.3
+        },
+        "foggy": {
+            "name": "Foggy Weather",
+            "timeOfDay": "12:00",
+            "fixed": true,
+            "dayLengthRealTimeSeconds": 1800,
+            "daytimeScale": 1,
+            "nighttimeScale": 2,
+            "azimuth": 0,
+            "fogDensity": 0.007,
+            "cloudCover": 0.8
+        },
+        "stormy": {
+            "name": "Stormy Weather",
+            "timeOfDay": "18:30",
+            "fixed": true,
+            "dayLengthRealTimeSeconds": 1800,
+            "daytimeScale": 1,
+            "nighttimeScale": 1,
+            "azimuth": 0,
+            "fogDensity": 0.003,
+            "cloudCover": 0.9
         },
         "dynamic": {
             "name": "Dynamic Time",
@@ -74,12 +119,14 @@
             "dayLengthRealTimeSeconds": 600,
             "daytimeScale": 1,
             "nighttimeScale": 2,
-            "azimuth": 0
+            "azimuth": 0,
+            "fogDensity": 0.0005,
+            "cloudCover": 0.2
         }
     },
     "weatherSettings": {
         "defaultPreset": "clear",
-        "floodStartPreset": "stormy",
+        "floodStartPreset": "afternoon",
         "floodEndPreset": "clear",
         "autoChangeWeather": true
     },
