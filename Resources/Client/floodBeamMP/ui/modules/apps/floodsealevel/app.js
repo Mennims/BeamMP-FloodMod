@@ -91,6 +91,14 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 					return 0
 				end)()`;
 
+			const LuaFloodState = `
+				(function()
+					if floodBeamMP and floodBeamMP.state and floodBeamMP.state.floodState then
+						return floodBeamMP.state.floodState
+					end
+					return {status = "stopped", speed = 0, level = 0, lastUpdate = 0}
+				end)()`;
+
 			const appContainer = document.getElementById('app-container');
 			const seaContainer = document.getElementById('sea-container');
 			
@@ -102,6 +110,12 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 			$scope.difference = 0;
 			$scope.seaLevel = 0;
 			$scope.floodSpeed = 0;
+			$scope.floodState = {
+				status: "stopped",
+				speed: 0,
+				level: 0,
+				lastUpdate: 0
+			};
 
 			if (seaContainer) {
 				seaContainer.hidden = true;
@@ -184,6 +198,96 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 			// Start the pulse scheduling
 			schedulePulseSocials();
 
+			// Flood status handling functions
+			$scope.getFloodStatusText = function() {
+				if (!$scope.floodState) return 'FLOOD STOPPED';
+				
+				switch($scope.floodState.status) {
+					case 'stopped':
+						return 'FLOOD STOPPED';
+					case 'auto_countdown':
+						return 'AUTO STARTING...';
+					case 'countdown':
+						return 'STARTING...';
+					case 'active':
+						return 'FLOOD ACTIVE';
+					default:
+						return 'FLOOD STOPPED';
+				}
+			};
+
+			$scope.getFloodStatusClass = function() {
+				if (!$scope.floodState || !$scope.floodState.status) return 'flood-status-stopped';
+				return 'flood-status-' + $scope.floodState.status;
+			};
+
+			$scope.getCarIconClass = function() {
+				const distance = parseFloat($scope.difference) || 0;
+				
+				if (distance <= 10) {
+					return 'car-danger'; // Red pulse
+				} else if (distance <= 20) {
+					return 'car-warning'; // Yellow pulse
+				} else {
+					return 'car-safe'; // Green pulse
+				}
+			};
+
+			// Difficulty indicator based on flood speed
+			$scope.getDifficultyText = function() {
+				const speed = parseFloat($scope.floodSpeed) || 0;
+				
+				if (speed < 1.25) {
+					return 'Very Easy';
+				} else if (speed < 1.75) {
+					return 'Easy';
+				} else if (speed < 2.00) {
+					return 'Normal';
+				} else if (speed < 2.25) {
+					return 'Intermediate';
+				} else if (speed < 2.50) {
+					return 'Hard';
+				} else if (speed < 2.75) {
+					return 'Very Hard';
+				} else if (speed < 3.00) {
+					return 'Extreme';
+				} else {
+					return 'Impossible';
+				}
+			};
+
+			$scope.getDifficultyClass = function() {
+				const speed = parseFloat($scope.floodSpeed) || 0;
+				
+				if (speed < 1.25) {
+					return 'difficulty-very-easy';
+				} else if (speed < 1.75) {
+					return 'difficulty-easy';
+				} else if (speed < 2.00) {
+					return 'difficulty-normal';
+				} else if (speed < 2.25) {
+					return 'difficulty-intermediate';
+				} else if (speed < 2.50) {
+					return 'difficulty-hard';
+				} else if (speed < 2.75) {
+					return 'difficulty-very-hard';
+				} else if (speed < 3.00) {
+					return 'difficulty-extreme';
+				} else {
+					return 'difficulty-impossible';
+				}
+			};
+
+			// Listen for flood state updates
+			$scope.$on('FloodStateUpdate', function(event, floodState) {
+				if (isDestroyed) return;
+				if (floodState && typeof floodState === 'object') {
+					$scope.floodState = floodState;
+					$scope.floodSpeed = floodState.speed || 0; // Update flood speed
+				}
+				$scope.$apply();
+			});
+
 			// Clean up existing listeners to prevent duplicates
 			$scope.$$listeners.streamsUpdate = [];
 
@@ -199,6 +303,13 @@ angular.module("beamng.apps").directive("floodsealevel", [function () {
 				bngApi.engineLua(LuaFloodSpeed, (floodSpeedResult) => {
 					if (isDestroyed) return;
 					floodSpeed = floodSpeedResult;
+				});
+				
+				bngApi.engineLua(LuaFloodState, (floodStateResult) => {
+					if (isDestroyed) return;
+					if (floodStateResult && typeof floodStateResult === 'object') {
+						$scope.floodState = floodStateResult;
+					}
 				});
 
 				if (playerVehicleZ && seaLevel && seaContainer && appContainer) {

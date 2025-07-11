@@ -25,6 +25,67 @@ local vehicleTemplate = {
     config = nil -- JSON config
 }
 
+-- Flood Status Constants (Game server best practices)
+local FLOOD_STATUS = {
+    STOPPED = "stopped",           -- No flood active, waiting for players/vehicles
+    AUTO_START_COUNTDOWN = "auto_countdown", -- Auto-start countdown active (45s)
+    ROUND_COUNTDOWN = "countdown", -- Round countdown active (5s before flood starts)
+    ACTIVE = "active"              -- Flood is actively rising during round
+}
+
+-- Centralized Flood State System
+local FloodState = {
+    status = FLOOD_STATUS.STOPPED,
+    speed = 0, -- m/s
+    level = 0, -- Current water level
+    lastUpdate = 0 -- Timestamp of last state change
+}
+
+local function sendFloodStateUpdate(pid)
+    local floodStateJson = Util.JsonEncode({
+        status = FloodState.status,
+        speed = FloodState.speed,
+        level = FloodState.level,
+        lastUpdate = FloodState.lastUpdate
+    })
+
+    if pid then
+        -- Send to specific player
+        MP.TriggerClientEvent(pid, "E_FloodStateUpdate", floodStateJson)
+    else
+        -- Send to all players
+        MP.TriggerClientEvent(-1, "E_FloodStateUpdate", floodStateJson)
+    end
+end
+
+-- Function to update flood state and broadcast to clients
+local function setFloodState(newStatus, newSpeed, newLevel)
+    local changed = false
+    
+    if newStatus and FloodState.status ~= newStatus then
+        FloodState.status = newStatus
+        changed = true
+    end
+    
+    if newSpeed and FloodState.speed ~= newSpeed then
+        FloodState.speed = newSpeed
+        changed = true
+    end
+    
+    if newLevel and FloodState.level ~= newLevel then
+        FloodState.level = newLevel
+        changed = true
+    end
+    
+    if changed then
+        FloodState.lastUpdate = U.getCurrentTimeMs()
+        
+        -- Broadcast flood state to all clients using centralized function
+        sendFloodStateUpdate()
+        print("Flood state updated: " .. FloodState.status .. " | Speed: " .. FloodState.speed .. "m/s | Level: " .. FloodState.level)
+    end
+end
+
 local M = {}
 
 M.mapConfig = Util.JsonDecode(io.open("Resources/Server/Flood/config/map.json"):read("*all"))
@@ -87,10 +148,6 @@ local function setWaterLevel(level)
     end
 
     MP.TriggerClientEvent(-1, "E_SetWaterLevel", tostring(level))
-end
-
-local function setFloodSpeed(speed)
-    MP.TriggerClientEvent(-1, "E_SetFloodSpeed", tostring(speed))
 end
 
 local function isFloodOrCountdownStarted()
@@ -188,8 +245,8 @@ local function beginFlood()
     -- Notify clients that round has started (send as string to preserve precision)
     MP.TriggerClientEvent(-1, "E_RoundStarted", tostring(M.state.roundStartTime))
     
-    -- Sync flood speed to all players at round start
-    setFloodSpeed(M.options.floodSpeed)
+    -- Update flood state to ACTIVE
+    setFloodState(FLOOD_STATUS.ACTIVE, M.options.floodSpeed, M.options.oceanLevel)
 
     MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
 end
@@ -199,6 +256,9 @@ local function startCountdown()
 
     M.countdown.started = true;
     MP.CreateEventTimer("ET_Countdown", 1000)
+    
+    -- Update flood state to ROUND_COUNTDOWN
+    setFloodState(FLOOD_STATUS.ROUND_COUNTDOWN, M.options.floodSpeed, M.options.oceanLevel)
 end
 
 local function countdownComplete()
@@ -213,6 +273,9 @@ local function resetCountdown()
     M.options.enabled = false;
     M.countdown.currentCount = 0;
     M.countdown.started = false;
+    
+    -- Update flood state to STOPPED when countdown is reset
+    setFloodState(FLOOD_STATUS.STOPPED, M.options.floodSpeed, M.options.oceanLevel)
 end
 
 local function startAutoStartCountdown()    
@@ -234,6 +297,9 @@ local function startAutoStartCountdown()
     end, 5000)
 
     MP.CreateEventTimer("ET_AutoStartCountdown", 1000)
+    
+    -- Update flood state to AUTO_START_COUNTDOWN
+    setFloodState(FLOOD_STATUS.AUTO_START_COUNTDOWN, M.options.floodSpeed, M.options.oceanLevel)
 end
 
 local function autoStartCountdownComplete()
@@ -248,6 +314,9 @@ local function resetAutoStartCountdown()
     MP.CancelEventTimer("ET_AutoStartCountdown")
     M.autoStartCountdown.currentCount = 0;
     M.autoStartCountdown.started = false;
+    
+    -- Update flood state to STOPPED when auto countdown is reset
+    setFloodState(FLOOD_STATUS.STOPPED, M.options.floodSpeed, M.options.oceanLevel)
 end
 
 local function updatePlayersStatesVehicles()
@@ -570,8 +639,7 @@ local function prepareFlood()
         updateDestinationForClients(M.mapConfig.destination.pos)
     end
     
-    -- Sync flood speed to all players before round starts
-    setFloodSpeed(M.options.floodSpeed)
+    setFloodState(FLOOD_STATUS.STOPPED, M.options.floodSpeed, M.options.oceanLevel)
 
     U.setTimeout(function()
         C.setVehicleFreeze(true)
@@ -620,8 +688,9 @@ function onPlayerJoin(pid)
             MP.TriggerClientEvent(pid, "E_SetRainVolume", tostring(M.options.rainVolume))
         end
         
-        -- Sync flood speed
-        MP.TriggerClientEvent(pid, "E_SetFloodSpeed", tostring(M.options.floodSpeed))
+        -- Send current flood state to new player using centralized function
+        sendFloodStateUpdate(pid)
+        
         updatePlayerState(pid)
         
         U.setTimeout(function()
@@ -667,7 +736,6 @@ function onPlayerDisconnect(pid)
 end
 
 function onVehicleSpawn(pid, vid, data)
-    updatePlayerState(pid)
     if MP.GetPlayerCount() >= 1 and not M.autoStartCountdown.started and not M.countdown.started and not M.options.enabled and not M.state.floodStartQueued then
         startAutoStartCountdown()
     end
@@ -700,6 +768,9 @@ function onInit()
     
     -- Start full leaderboard broadcasting timer (every 5 seconds always)
     MP.CreateEventTimer("ET_LeaderboardFull", 5000)
+    
+    -- Initialize flood state to STOPPED
+    setFloodState(FLOOD_STATUS.STOPPED, M.options.floodSpeed, M.options.oceanLevel)
 
     for pid, player in pairs(MP.GetPlayers()) do
         onPlayerJoin(pid)
@@ -791,6 +862,7 @@ function T_Update()
     
     M.options.oceanLevel = level
     setWaterLevel(level)
+    
 
     updatePlayersStatesVehicles()
     ensureVehiclesAreAboveWaterLine()
@@ -878,6 +950,10 @@ function E_OnInitialize(pid, waterLevel)
     if M.initialLevel == 0.0 then
         print("Setting initial water level to " .. waterLevel)
         M.initialLevel = waterLevel -- We sadly have to rely on the client 😅🔫
+        M.options.oceanLevel = waterLevel
+        
+        -- Update flood state with the real water level
+        setFloodState(FLOOD_STATUS.STOPPED, M.options.floodSpeed, waterLevel)
     end
 
     C.spawnDefaultVehicle(pid)
@@ -938,6 +1014,9 @@ M.commands["stop"] = function(pid)
     M.options.enabled = false
     M.options.oceanLevel = M.initialLevel
     setWaterLevel(M.initialLevel)
+
+    -- Update flood state to STOPPED
+    setFloodState(FLOOD_STATUS.STOPPED, M.options.floodSpeed, M.initialLevel)
 
     for pid, playerState in pairs(M.state.players) do
         setPlayerDead(pid, false)
@@ -1009,7 +1088,8 @@ M.commands["speed"] = function(pid, speed)
     -- Do I limit the max? Hmmm, not sure 🤔
 
     M.options.floodSpeed = speed
-    setFloodSpeed(speed)
+    -- Update flood state with new speed
+    setFloodState(nil, speed, nil)
     MP.hSendChatMessage(pid, "Set flood speed to " .. speed .. " m/s")
 end
 
@@ -1280,5 +1360,49 @@ M.commands["collisions_ghosts"] = function(pid)
     MP.TriggerClientEvent(-1, "E_EnableGhostCollisions", "")
     MP.hSendChatMessage(-1, "^2Collisions set to GHOSTS - smart collision system enabled")
 end
+
+-- Debug command to test flood status
+M.commands["flood_status"] = function(pid, status)
+    if not status then
+        MP.hSendChatMessage(pid, "^7Current flood status: ^2" .. FloodState.status)
+        MP.hSendChatMessage(pid, "^7Speed: ^2" .. FloodState.speed .. "m/s")
+        MP.hSendChatMessage(pid, "^7Level: ^2" .. FloodState.level)
+        MP.hSendChatMessage(pid, "^7Available statuses: stopped, auto_countdown, countdown, active")
+        return
+    end
+    
+    local validStatuses = {
+        stopped = FLOOD_STATUS.STOPPED,
+        auto_countdown = FLOOD_STATUS.AUTO_START_COUNTDOWN,
+        countdown = FLOOD_STATUS.ROUND_COUNTDOWN,
+        active = FLOOD_STATUS.ACTIVE
+    }
+    
+    if validStatuses[status] then
+        setFloodState(validStatuses[status], M.options.floodSpeed, M.options.oceanLevel)
+        MP.hSendChatMessage(pid, "^2Flood status set to: " .. status)
+    else
+        MP.hSendChatMessage(pid, "^4Invalid status. Use: stopped, auto_countdown, countdown, active")
+    end
+end
+
+-- Debug command to manually send flood state update
+M.commands["flood_sync"] = function(pid)
+    if pid then
+        sendFloodStateUpdate(pid)
+        MP.hSendChatMessage(pid, "^2Flood state synced to your client")
+    else
+        sendFloodStateUpdate()
+        MP.hSendChatMessage(-1, "^2Flood state synced to all clients")
+    end
+end
+
+-- Expose flood state functions for external use
+M.getFloodState = function()
+    return FloodState
+end
+
+M.sendFloodStateUpdate = sendFloodStateUpdate
+M.buildFloodStateJson = buildFloodStateJson
 
 return M

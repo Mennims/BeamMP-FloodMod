@@ -23,11 +23,18 @@
 					ng-click="patreon()"
 					ng-mouseover="showSocialsText('Copy Patreon Link')">
 		</div>
+		
+
+	</div>
+
+	<div class="flood-status" ng-class="getFloodStatusClass()">
+		<span class="flood-status-text">{{getFloodStatusText()}}</span>
 	</div>
 
 	<div id="app-container">
 		<img
 			class="carIcon"
+			ng-class="getCarIconClass()"
 			ng-src="/ui/modules/apps/floodsealevel/carOffroadOutlineSide.svg"
 			src="/ui/modules/apps/floodsealevel/carOffroadOutlineSide.svg"
 		/>
@@ -38,6 +45,7 @@
 			</div>
 			<div class="flood-speed">
 				<span ng-if="floodSpeed !== null">{{floodSpeed}}m/s</span>
+				<span class="difficulty-indicator" ng-class="getDifficultyClass()" ng-if="floodSpeed !== null">{{getDifficultyText()}}</span>
 			</div>
 		</div>
 		

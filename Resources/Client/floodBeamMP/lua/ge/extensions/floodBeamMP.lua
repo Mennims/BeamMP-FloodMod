@@ -128,7 +128,13 @@ M.state = {
   destinationPos = vec3(634.2406616, 3175.344971, 1227.2677), -- Default destination
   roundStartTime = 0, -- Track when current round started
   vehiclePower = nil, -- Track vehicle engine power
-  floodSpeed = 0 -- Track current flood speed in m/s
+  floodSpeed = 0, -- Track current flood speed in m/s
+  floodState = {
+    status = "stopped",
+    speed = 0,
+    level = 0,
+    lastUpdate = 0
+  }
 }
 
 M.updateRoadDistance = function()
@@ -417,10 +423,21 @@ AddEventHandler("E_RoundEnded", function(endTimeStr)
     guihooks.trigger('RoundEnded', endTime)
 end)
 
-AddEventHandler("E_SetFloodSpeed", function(speed)
-    local floodSpeed = tonumber(speed) or 0
-    M.state.floodSpeed = floodSpeed
-    log("I", "floodBeamMP", "Flood speed updated to: " .. floodSpeed .. " m/s")
+AddEventHandler("E_FloodStateUpdate", function(floodStateJson)
+    local success, floodState = pcall(jsonDecode, floodStateJson)
+    if success and floodState then
+        M.state.floodState = floodState
+        -- Also update the legacy floodSpeed for backward compatibility
+        M.state.floodSpeed = floodState.speed or 0
+        
+        -- Trigger UI update
+        guihooks.trigger('FloodStateUpdate', floodState)
+        
+        log("I", "floodBeamMP", "Flood state updated: " .. (floodState.status or "unknown") .. 
+            " | Speed: " .. (floodState.speed or 0) .. "m/s")
+    else
+        log("W", "floodBeamMP", "Failed to decode flood state: " .. tostring(floodStateJson))
+    end
 end)
 
 AddEventHandler("E_PlayerWon", function(finishTimeStr)
