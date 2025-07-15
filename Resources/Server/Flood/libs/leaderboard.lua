@@ -595,7 +595,7 @@ function M.calculateScore(entry, roundFloodSpeed)
     end
 
     -- Prevent players from cheating the leaderboard by teleporting to the end
-    if timeForScoringSeconds < 180 and distance > trackLength * 0.7 then
+    if timeForScoringSeconds < 300 and distance > trackLength * 0.9 then
         finalScore = 0
     end
     

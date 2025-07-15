@@ -675,10 +675,10 @@ function onPlayerJoin(pid)
         
         print("Player " .. tostring(pid) .. " joining...")
         
-        C.setUiLayout(pid, "flood v0.20")
+        C.setUiLayout(pid, "flood v0.21")
 
         U.setTimeout(function()
-            C.setUiLayout(pid, "flood v0.20")
+            C.setUiLayout(pid, "flood v0.21")
             welcomePlayer(pid)
         end, 3000)
 

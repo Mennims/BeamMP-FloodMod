@@ -137,12 +137,38 @@ M.state = {
   }
 }
 
+function getMyVehicle()
+    local localPlayerID = MPConfig.getPlayerServerID()
+    local vehicles = MPVehicleGE.getVehicles()
+    
+    for serverVehicleID, vehicle in pairs(vehicles) do
+        if vehicle.ownerID == localPlayerID then
+            -- Get the actual game vehicle object using the gameVehicleID
+            if vehicle.gameVehicleID then
+                return scenetree.findObjectById(vehicle.gameVehicleID)
+            end
+        end
+    end
+    
+    return nil
+end
+
 M.updateRoadDistance = function()
     if (M.state.destinationPos == nil) then
         return
     end
 
-    local distance = MH.getRoadDistanceRemaining(M.state.destinationPos)
+    -- Get the player's own vehicle
+    local ownVehicle = getMyVehicle()
+
+    if not ownVehicle then
+        M.state.roadDistance = nil
+        return nil
+    end
+
+    -- Calculate road distance for the player's own vehicle
+    local pos = ownVehicle:getPosition()
+    local distance = MH.getRoadDistance(pos, M.state.destinationPos)
     
     -- Validate distance value
     if distance and type(distance) == "number" and distance == distance and distance ~= math.huge and distance ~= -math.huge then
@@ -159,11 +185,13 @@ M.updateRoadDistance = function()
 end
 
 M.getVehiclePower = function()
-    local vehicle = be:getPlayerVehicle(0)
-    if not vehicle then return nil end
+    -- Get the player's own vehicle
+    local ownVehicle = getMyVehicle()
+
+    if not ownVehicle then return nil end
     
     -- Execute vehicle Lua that calls back to game engine Lua to set the power
-    vehicle:queueLuaCommand([[
+    ownVehicle:queueLuaCommand([[
         if powertrain and powertrain.getDevice then
             local engine = powertrain.getDevice("mainEngine")
             if engine and engine.torqueData and engine.torqueData.maxPower then

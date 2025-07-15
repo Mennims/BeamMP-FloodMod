@@ -129,9 +129,22 @@
         "top": "40px",
         "width": "500px"
       }
+    },
+    {
+      "appName":"vehiclespectators",
+      "placement":{
+        "bottom":"",
+        "height":"80px",
+        "left":0,
+        "margin":"auto",
+        "position":"absolute",
+        "right":0,
+        "top":"42px",
+        "width":"240px"
+      }
     }
   ],
-  "title": "Flood v0.20",
-  "type": "flood v0.20",
-  "version": 0.20
+  "title": "Flood v0.21",
+  "type": "flood v0.21",
+  "version": 0.21
 }
